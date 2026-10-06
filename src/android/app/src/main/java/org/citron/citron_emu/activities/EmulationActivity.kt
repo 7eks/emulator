@@ -44,6 +44,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.citron.citron_emu.NativeLibrary
 import org.citron.citron_emu.R
+import org.citron.citron_emu.features.thor.ThorPresentation
+import android.hardware.display.DisplayManager
+import android.view.Display
 import org.citron.citron_emu.CitronApplication
 import org.citron.citron_emu.databinding.ActivityEmulationBinding
 import org.citron.citron_emu.features.input.NativeInput
@@ -66,6 +69,7 @@ import kotlin.math.roundToInt
 
 class EmulationActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var binding: ActivityEmulationBinding
+    private var thorPresentation: ThorPresentation? = null
 
     var isActivityRecreated = false
     private lateinit var nfcReader: NfcReader
@@ -189,6 +193,7 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener {
         InputHandler.updateControllerData()
 
         buildPictureInPictureParams()
+        initializeThor()
     }
 
     override fun onPause() {
@@ -196,6 +201,8 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener {
         super.onPause()
         nfcReader.stopScanning()
         stopMotionSensorListener()
+        thorPresentation?.dismiss()
+        thorPresentation = null
     }
 
     override fun onUserLeaveHint() {
@@ -575,6 +582,27 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener {
 
         sensorManager.unregisterListener(this, gyroSensor)
         sensorManager.unregisterListener(this, accelSensor)
+
+    }
+
+    private fun initializeThor() {
+        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        val displays = displayManager.displays
+        if (displays.size > 1) {
+            // Find the first secondary display (not default)
+            val secondaryDisplay = displays.firstOrNull { it.displayId != Display.DEFAULT_DISPLAY }
+            if (secondaryDisplay != null) {
+                try {
+                    thorPresentation = ThorPresentation(this, secondaryDisplay)
+                    thorPresentation?.show()
+                    // Hide main overlay
+                    findViewById<View>(R.id.surface_input_overlay)?.visibility = View.GONE
+                    Toast.makeText(this, "Project Thor: Controllers moved to bottom screen!", Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    Log.error("[Thor] Failed to initialize secondary screen: " + e.message)
+                }
+            }
+        }
     }
 
     companion object {
