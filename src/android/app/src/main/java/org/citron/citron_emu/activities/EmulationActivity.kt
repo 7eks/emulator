@@ -44,9 +44,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.citron.citron_emu.NativeLibrary
 import org.citron.citron_emu.R
+import org.citron.citron_emu.features.thor.SecondScreen
 import org.citron.citron_emu.features.thor.ThorPresentation
-import android.hardware.display.DisplayManager
-import android.view.Display
 import org.citron.citron_emu.CitronApplication
 import org.citron.citron_emu.databinding.ActivityEmulationBinding
 import org.citron.citron_emu.features.input.NativeInput
@@ -92,6 +91,9 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener {
         ThemeHelper.setTheme(this)
 
         super.onCreate(savedInstanceState)
+        if (moveToMainScreen()) {
+            return
+        }
         DisplayModeUtil.preferHighestRefreshRate(this)
 
         InputHandler.updateControllerData()
@@ -585,28 +587,54 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener {
 
     }
 
+    /**
+     * A game belongs on the main screen. This activity opens on whichever screen it was started
+     * from, and on a dual-screen handheld that can be the small one: an icon tapped down there,
+     * or a frontend that lives there. When that happens, start again on the main screen and
+     * close this copy. It is tried once, so a refusal cannot loop. The game file has to be one
+     * the emulator can open by itself (a folder added as a games folder), since a one-time
+     * grant from the caller ends with this copy.
+     */
+    private fun moveToMainScreen(): Boolean {
+        if (intent.getBooleanExtra(EXTRA_MOVED_TO_MAIN_SCREEN, false) || !SecondScreen.isOn(this)) {
+            return false
+        }
+        return try {
+            val again = Intent(intent)
+            again.setClass(this, EmulationActivity::class.java)
+            again.putExtra(EXTRA_MOVED_TO_MAIN_SCREEN, true)
+            again.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
+            startActivity(again, SecondScreen.mainScreenOptions())
+            finish()
+            true
+        } catch (e: Exception) {
+            Log.error("[SecondScreen] Could not move the game to the main screen: " + e.message)
+            false
+        }
+    }
+
     private fun initializeThor() {
-        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        val displays = displayManager.displays
-        if (displays.size > 1) {
-            // Find the first secondary display (not default)
-            val secondaryDisplay = displays.firstOrNull { it.displayId != Display.DEFAULT_DISPLAY }
-            if (secondaryDisplay != null) {
-                try {
-                    thorPresentation = ThorPresentation(this, secondaryDisplay)
-                    thorPresentation?.show()
-                    // Hide main overlay
-                    findViewById<View>(R.id.surface_input_overlay)?.visibility = View.GONE
-                    Toast.makeText(this, "Project Thor: Controllers moved to bottom screen!", Toast.LENGTH_LONG).show()
-                } catch (e: Exception) {
-                    Log.error("[Thor] Failed to initialize secondary screen: " + e.message)
-                }
-            }
+        // Only a handheld with a second built-in screen gets the panel. A television, a cast
+        // target or a recording is also "another display" to Android, and a phone that has one
+        // of those must keep its touch controls and must not get a stats panel on it.
+        val secondScreen = SecondScreen.find(this) ?: return
+        if (SecondScreen.isOn(this)) {
+            // The game itself is on that screen. Do not cover it.
+            return
+        }
+        try {
+            thorPresentation = ThorPresentation(this, secondScreen)
+            thorPresentation?.show()
+            // The handheld has its own buttons and sticks.
+            findViewById<View>(R.id.surface_input_overlay)?.visibility = View.GONE
+        } catch (e: Exception) {
+            Log.error("[SecondScreen] Could not show the panel: " + e.message)
         }
     }
 
     companion object {
         const val EXTRA_SELECTED_GAME = "SelectedGame"
+        private const val EXTRA_MOVED_TO_MAIN_SCREEN = "MovedToMainScreen"
         private val MIN_PICTURE_IN_PICTURE_ASPECT_RATIO = Rational(100, 239)
         private val MAX_PICTURE_IN_PICTURE_ASPECT_RATIO = Rational(239, 100)
 
