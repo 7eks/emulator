@@ -248,6 +248,10 @@ u64 BufferCache<P>::WidenHotWrite(DAddr device_addr, u64 size) {
         ++end_block;
     }
     const u64 wide_size = (end_block << CACHING_PAGEBITS) - device_addr;
+    if (wide_size <= size) {
+        // The write runs past the end of the hot caching pages. Never mark less than was written.
+        return size;
+    }
     // Pages the host GPU wrote hold data guest memory does not have yet. Leave those alone.
     if (memory_tracker.IsRegionGpuModified(device_addr, wide_size) ||
         IsRegionGpuModified(device_addr, wide_size)) {
@@ -963,7 +967,7 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     Buffer& buffer = slot_buffers[binding.buffer_id];
     TouchBuffer(buffer, binding.buffer_id);
     if (binding.buffer_id != NULL_BUFFER_ID && shader_size > binding.size &&
-        runtime.NeedsPaddedUniformBuffers() &&
+        runtime.NeedsPaddedUniformBuffer(binding.size) &&
         !memory_tracker.IsRegionGpuModified(device_addr, size)) {
         const std::span<u8> span =
             runtime.BindMappedUniformBuffer(stage, binding_index, shader_size);
