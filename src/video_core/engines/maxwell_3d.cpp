@@ -363,6 +363,11 @@ void Maxwell3D::ProcessDirtyRegisters(u32 method, u32 argument) {
     constexpr u32 rt_words = sizeof(Regs::RenderTargetConfig) / sizeof(u32);
     constexpr u32 dimension_word =
         offsetof(Regs::RenderTargetConfig, array_pitch) / sizeof(u32) - 1;
+    // Games rewrite most of their state before every draw. A write that changes nothing must not
+    // mark the state dirty, or every draw pays for rebinding all of it.
+    if (regs.reg_array[method] == argument) {
+        return;
+    }
     regs.reg_array[method] = argument;
     if (method >= rt_start && method < rt_start + Regs::NumRenderTargets * rt_words) {
         const u32 index = (method - rt_start) / rt_words;
