@@ -766,6 +766,11 @@ public:
         return features.robustness2.nullDescriptor;
     }
 
+    /// Returns true when buffer reads outside a descriptor's range are guaranteed to return zero
+    bool HasRobustBufferAccess2() const {
+        return features.robustness2.robustBufferAccess2;
+    }
+
     bool HasExactDepthBiasControl() const {
         return features.depth_bias_control.depthBiasExact;
     }
