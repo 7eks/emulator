@@ -153,11 +153,13 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
             u32 word{(gpu_memory.Read<u32>(addr) >> desc.shift_right) & desc.mask};
             if (desc.indirect) {
                 // The word is an index. The texture number is the 16-bit table entry.
+                const auto& table{cbufs[desc.table_cbuf_index]};
                 const bool enabled{((qmd.const_buffer_enable_mask >> desc.table_cbuf_index) & 1) !=
                                    0};
                 const u32 entry{(word << desc.table_shift) + desc.table_base};
-                word = enabled ? gpu_memory.Read<u16>(cbufs[desc.table_cbuf_index].Address() + entry)
-                               : 0;
+                word = enabled && entry + sizeof(u16) <= table.size
+                           ? gpu_memory.Read<u16>(table.Address() + entry)
+                           : 0;
             }
             if (desc.has_secondary) {
                 ASSERT(((qmd.const_buffer_enable_mask >> desc.secondary_cbuf_index) & 1) != 0);

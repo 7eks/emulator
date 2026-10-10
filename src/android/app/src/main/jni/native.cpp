@@ -394,7 +394,7 @@ std::unique_lock<std::mutex> EmulationSession::AcquireSessionLock() {
     return std::unique_lock{m_mutex};
 }
 
-const Core::PerfStatsResults& EmulationSession::PerfStats() {
+Core::PerfStatsResults EmulationSession::PerfStats() {
     // Reading the stats also resets them, and three overlays read them: two
     // in EmulationFragment and the one on the second screen. Each was dividing
     // the frames since the previous reader's reset by however many
@@ -408,6 +408,7 @@ const Core::PerfStatsResults& EmulationSession::PerfStats() {
         m_perf_stats = m_system.GetAndResetPerfStats();
         last_reset = now;
     }
+    // A copy taken under the lock, so a reader never sees the next refresh half written.
     return m_perf_stats;
 }
 

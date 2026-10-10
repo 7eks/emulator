@@ -69,6 +69,7 @@ import kotlin.math.roundToInt
 class EmulationActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var binding: ActivityEmulationBinding
     private var thorPresentation: ThorPresentation? = null
+    private var overlayVisibilityBeforePanel: Int? = null
 
     var isActivityRecreated = false
     private lateinit var nfcReader: NfcReader
@@ -203,8 +204,10 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener {
         super.onPause()
         nfcReader.stopScanning()
         stopMotionSensorListener()
-        thorPresentation?.dismiss()
+        // Cleared first, so the dismiss listener knows this was not the screen going away.
+        val panel = thorPresentation
         thorPresentation = null
+        panel?.dismiss()
     }
 
     override fun onUserLeaveHint() {
@@ -591,9 +594,8 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener {
      * A game belongs on the main screen. This activity opens on whichever screen it was started
      * from, and on a dual-screen handheld that can be the small one: an icon tapped down there,
      * or a frontend that lives there. When that happens, start again on the main screen and
-     * close this copy. It is tried once, so a refusal cannot loop. The game file has to be one
-     * the emulator can open by itself (a folder added as a games folder), since a one-time
-     * grant from the caller ends with this copy.
+     * close this copy. It is tried once, so a refusal cannot loop. A read grant the caller gave
+     * for the game file is passed on to the new copy, since it would end with this one.
      */
     private fun moveToMainScreen(): Boolean {
         if (intent.getBooleanExtra(EXTRA_MOVED_TO_MAIN_SCREEN, false) || !SecondScreen.isOn(this)) {
@@ -603,7 +605,11 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener {
             val again = Intent(intent)
             again.setClass(this, EmulationActivity::class.java)
             again.putExtra(EXTRA_MOVED_TO_MAIN_SCREEN, true)
-            again.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
+            val grants = intent.flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            again.flags =
+                Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or grants
             startActivity(again, SecondScreen.mainScreenOptions())
             finish()
             true
@@ -617,19 +623,42 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener {
         // Only a handheld with a second built-in screen gets the panel. A television, a cast
         // target or a recording is also "another display" to Android, and a phone that has one
         // of those must keep its touch controls and must not get a stats panel on it.
-        val secondScreen = SecondScreen.find(this) ?: return
-        if (SecondScreen.isOn(this)) {
-            // The game itself is on that screen. Do not cover it.
+        val secondScreen = SecondScreen.find(this)
+        if (secondScreen == null || SecondScreen.isOn(this)) {
+            // No second screen (any more), or the game itself is on it. Do not cover it, and
+            // give the touch controls back if the panel took them.
+            restoreTouchOverlay()
             return
         }
         try {
-            thorPresentation = ThorPresentation(this, secondScreen)
-            thorPresentation?.show()
+            val panel = ThorPresentation(this, secondScreen)
+            // Android dismisses the panel when its screen is switched off or goes away.
+            panel.setOnDismissListener {
+                if (thorPresentation === panel) {
+                    thorPresentation = null
+                    restoreTouchOverlay()
+                }
+            }
+            thorPresentation = panel
+            panel.show()
             // The handheld has its own buttons and sticks.
-            findViewById<View>(R.id.surface_input_overlay)?.visibility = View.GONE
+            val overlay = findViewById<View>(R.id.surface_input_overlay)
+            if (overlay != null) {
+                if (overlayVisibilityBeforePanel == null) {
+                    overlayVisibilityBeforePanel = overlay.visibility
+                }
+                overlay.visibility = View.GONE
+            }
         } catch (e: Exception) {
             Log.error("[SecondScreen] Could not show the panel: " + e.message)
         }
+    }
+
+    /** Puts the touch controls back the way they were before the panel hid them. */
+    private fun restoreTouchOverlay() {
+        val before = overlayVisibilityBeforePanel ?: return
+        overlayVisibilityBeforePanel = null
+        findViewById<View>(R.id.surface_input_overlay)?.visibility = before
     }
 
     companion object {

@@ -58,6 +58,13 @@ void ApplyShiftRight(ConstBufferAddr& addr, u32 amount) {
     addr.mask = rest < 32 ? (addr.mask >> rest) : 0;
 }
 
+/// A shift or bit field taken after two halves were combined, or after a table entry was read,
+/// would have to apply to the result and not to the word the fields above describe. Those are
+/// passed over like an instruction the pass does not know, as they were before.
+bool CanTakeFieldOf(const ConstBufferAddr& addr) {
+    return !addr.has_secondary && !addr.indirect;
+}
+
 /// A field of one constant buffer word, read at a fixed place. Unlike Track this does not look
 /// through instructions it does not know, so a value computed in the shader is not mistaken for
 /// a constant.
@@ -651,6 +658,9 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
             return std::nullopt;
         }
         std::optional lhs{Track(inst->Arg(0), env, host_info)};
+        if (lhs && !CanTakeFieldOf(*lhs)) {
+            return std::nullopt;
+        }
         if (lhs) {
             ApplyShiftRight(*lhs, shift.U32());
         }
@@ -663,6 +673,9 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
             return std::nullopt;
         }
         std::optional lhs{Track(inst->Arg(0), env, host_info)};
+        if (lhs && !CanTakeFieldOf(*lhs)) {
+            return std::nullopt;
+        }
         if (lhs) {
             ApplyShiftRight(*lhs, offset.U32());
             ApplyAnd(*lhs, count.U32() < 32 ? ((1U << count.U32()) - 1) : 0xFFFFFFFF);
@@ -694,8 +707,17 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
         std::optional lhs{Track(op1, env, host_info)};
         if (lhs) {
             const u32 value = op2.U32();
-            if ((value & 1) != 0) {
-                // A mask that keeps the low bits picks a field out of the word. Dropping it
+            const bool field_taken{lhs->shift_right != 0 || lhs->mask != 0xFFFFFFFF};
+            if (lhs->indirect) {
+                // The mask applies to the 16-bit table entry, not to the index the entry was
+                // found with. One that keeps all 16 bits changes nothing; any other cannot be
+                // described, so it is passed over like an instruction the pass does not know.
+                if ((value & 0xFFFF) != 0xFFFF) {
+                    return std::nullopt;
+                }
+            } else if (!lhs->has_secondary && ((value & 1) != 0 || field_taken)) {
+                // A mask that keeps the low bits picks a field out of the word, and a mask on
+                // a field already taken out applies at the field's position. Dropping it
                 // leaves the neighbouring field in the handle.
                 ApplyAnd(*lhs, value);
             } else {
