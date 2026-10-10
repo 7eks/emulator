@@ -771,6 +771,14 @@ public:
         return features.robustness2.robustBufferAccess2;
     }
 
+    /// Granularity of the bounds check behind robustBufferAccess2 for uniform buffers. Bytes past
+    /// the descriptor range but inside the rounded-up range can read the buffer, not zero.
+    u64 GetRobustUniformBufferAccessSizeAlignment() const {
+        const u64 alignment = properties.robustness2.robustUniformBufferAccessSizeAlignment;
+        // The extension allows up to 256. Assume the worst when the driver reported nothing.
+        return alignment != 0 ? alignment : 256;
+    }
+
     bool HasExactDepthBiasControl() const {
         return features.depth_bias_control.depthBiasExact;
     }
@@ -910,6 +918,7 @@ private:
         VkPhysicalDevicePushDescriptorPropertiesKHR push_descriptor{};
         VkPhysicalDeviceSubgroupSizeControlProperties subgroup_size_control{};
         VkPhysicalDeviceTransformFeedbackPropertiesEXT transform_feedback{};
+        VkPhysicalDeviceRobustness2PropertiesEXT robustness2{};
 
         VkPhysicalDeviceProperties properties{};
     };

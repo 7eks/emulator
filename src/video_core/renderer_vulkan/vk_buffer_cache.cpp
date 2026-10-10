@@ -342,9 +342,13 @@ BufferCacheRuntime::BufferCacheRuntime(const Device& device_, MemoryAllocator& m
       staging_pool{staging_pool_}, guest_descriptor_queue{guest_descriptor_queue_},
       quad_index_pass(device, scheduler, descriptor_pool, staging_pool,
                       compute_pass_descriptor_queue) {
-    if (NeedsPaddedUniformBuffers()) {
+    if (!device.HasRobustBufferAccess2()) {
         LOG_WARNING(Render_Vulkan, "Device lacks robustBufferAccess2, constant buffers will be "
                                    "zero padded on every bind");
+    } else if (device.GetRobustUniformBufferAccessSizeAlignment() > 1) {
+        LOG_WARNING(Render_Vulkan,
+                    "Constant buffers whose size is not a multiple of {} bytes will be zero padded",
+                    device.GetRobustUniformBufferAccessSizeAlignment());
     }
     if (device.GetDriverID() != VK_DRIVER_ID_QUALCOMM_PROPRIETARY) {
         // TODO: FixMe: Uint8Pass compute shader does not build on some Qualcomm drivers.
