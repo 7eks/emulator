@@ -14,6 +14,7 @@
 #include <tuple>
 
 #include "dynarmic/common/container/unordered_map.h"
+#include "dynarmic/common/container/tuple_hash.h"
 #include "dynarmic/common/container/unordered_set.h"
 
 #include "dynarmic/backend/block_range_information.h"
@@ -128,10 +129,10 @@ public:
     BlockRangeInformation<u32> block_ranges;
     std::array<FastDispatchEntry, fast_dispatch_table_size> fast_dispatch_table;
     ::Common::unordered_map<u64, FastmemPatchInfo> fastmem_patch_info;
-    ::Common::unordered_map<std::tuple<bool, size_t, int, int>, void (*)()> read_fallbacks;
-    ::Common::unordered_map<std::tuple<bool, size_t, int, int>, void (*)()> write_fallbacks;
-    ::Common::unordered_map<std::tuple<bool, size_t, int, int>, void (*)()> exclusive_write_fallbacks;
-    ::Common::unordered_set<DoNotFastmemMarker> do_not_fastmem;
+    ::Common::unordered_map<std::tuple<bool, size_t, int, int>, void (*)(), Dynarmic::Common::TupleHash> read_fallbacks;
+    ::Common::unordered_map<std::tuple<bool, size_t, int, int>, void (*)(), Dynarmic::Common::TupleHash> write_fallbacks;
+    ::Common::unordered_map<std::tuple<bool, size_t, int, int>, void (*)(), Dynarmic::Common::TupleHash> exclusive_write_fallbacks;
+    ::Common::unordered_set<DoNotFastmemMarker, Dynarmic::Common::TupleHash> do_not_fastmem;
     boost::container::stable_vector<Xbyak::Label> shared_labels;
     void (*memory_read_128)() = nullptr;   // Dummy
     void (*memory_write_128)() = nullptr;  // Dummy
