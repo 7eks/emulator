@@ -26,7 +26,7 @@ bool CondCanContinue(const ConditionalState cond_state, const A32::IREmitter& ir
         return true;
 
     // TODO: This is more conservative than necessary.
-    return std::all_of(ir.block.instructions.begin(), ir.block.instructions.end(), [](const IR::Inst& inst) {
+    return std::all_of(ir.block.begin(), ir.block.end(), [](const IR::Inst& inst) {
         return !WritesToCPSR(inst.GetOpcode());
     });
 }
@@ -65,7 +65,7 @@ bool IsConditionPassed(TranslatorVisitor& v, IR::Cond cond) {
 
     // non-AL cond
 
-    if (!v.ir.block.instructions.empty()) {
+    if (!v.ir.block.empty()) {
         // We've already emitted instructions. Quit for now, we'll make a new block here later.
         v.cond_state = ConditionalState::Break;
         v.ir.SetTerm(IR::Term::LinkBlockFast{v.ir.current_location});

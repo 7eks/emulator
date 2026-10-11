@@ -61,12 +61,12 @@ void EmitIR<IR::Opcode::GetNZFromOp>(lagoon_assembler_t& as, EmitContext& ctx, I
 EmittedBlockInfo EmitLoongArch64(lagoon_assembler_t& as, IR::Block block, const EmitConfig& emit_conf) {
     EmittedBlockInfo ebi;
 
-    RegAlloc reg_alloc{as, std::vector<u32>(GPR_ORDER), std::vector<u32>(FPR_ORDER)};
+    RegAlloc reg_alloc{as, std::vector<u32>(GPR_ORDER), std::vector<u32>(FPR_ORDER), block};
     EmitContext ctx{block, reg_alloc, emit_conf, ebi};
 
     ebi.entry_point = reinterpret_cast<CodePtr>(as.cursor);
 
-    for (auto iter = block.instructions.begin(); iter != block.instructions.end(); ++iter) {
+    for (auto iter = block.begin(); iter != block.end(); ++iter) {
         IR::Inst* inst = &*iter;
 
         switch (inst->GetOpcode()) {

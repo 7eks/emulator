@@ -1610,10 +1610,10 @@ void EmitIR<IR::Opcode::VectorTable>(oaknut::CodeGenerator&, EmitContext&, IR::I
 
 template<>
 void EmitIR<IR::Opcode::VectorTableLookup64>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
-    assert(inst->GetArg(1).GetInst()->GetOpcode() == IR::Opcode::VectorTable);
+    assert(inst->GetArg(1).GetInst(ctx.block)->GetOpcode() == IR::Opcode::VectorTable);
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    auto table = ctx.reg_alloc.GetArgumentInfo(inst->GetArg(1).GetInst());
+    auto table = ctx.reg_alloc.GetArgumentInfo(inst->GetArg(1).GetInst(ctx.block));
 
     const std::size_t table_size = std::count_if(table.begin(), table.end(), [](const auto& elem) { return !elem.IsVoid(); });
     const bool is_defaults_zero = inst->GetArg(0).IsZero();
@@ -1677,10 +1677,10 @@ void EmitIR<IR::Opcode::VectorTableLookup64>(oaknut::CodeGenerator& code, EmitCo
 
 template<>
 void EmitIR<IR::Opcode::VectorTableLookup128>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
-    assert(inst->GetArg(1).GetInst()->GetOpcode() == IR::Opcode::VectorTable);
+    assert(inst->GetArg(1).GetInst(ctx.block)->GetOpcode() == IR::Opcode::VectorTable);
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    auto table = ctx.reg_alloc.GetArgumentInfo(inst->GetArg(1).GetInst());
+    auto table = ctx.reg_alloc.GetArgumentInfo(inst->GetArg(1).GetInst(ctx.block));
 
     const std::size_t table_size = std::count_if(table.begin(), table.end(), [](const auto& elem) { return !elem.IsVoid(); });
     const bool is_defaults_zero = inst->GetArg(0).IsZero();

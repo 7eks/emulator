@@ -203,7 +203,7 @@ EmittedBlockInfo EmitArm64(oaknut::CodeGenerator& code, IR::Block block, const E
     EmittedBlockInfo ebi;
 
     FpsrManager fpsr_manager{code, conf.state_fpsr_offset};
-    RegAlloc reg_alloc{code, fpsr_manager, GPR_ORDER, FPR_ORDER};
+    RegAlloc reg_alloc{code, fpsr_manager, GPR_ORDER, FPR_ORDER, block};
     EmitContext ctx{block, reg_alloc, conf, ebi, fpsr_manager, fastmem_manager, {}};
 
     ebi.entry_point = code.xptr<CodePtr>();
@@ -221,7 +221,7 @@ EmittedBlockInfo EmitArm64(oaknut::CodeGenerator& code, IR::Block block, const E
         code.l(pass);
     }
 
-    for (auto iter = block.instructions.begin(); iter != block.instructions.end(); ++iter) {
+    for (auto iter = block.begin(); iter != block.end(); ++iter) {
         IR::Inst* inst = &*iter;
 
         switch (inst->GetOpcode()) {

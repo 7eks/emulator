@@ -105,8 +105,8 @@ RegAlloc::ArgumentInfo RegAlloc::GetArgumentInfo(IR::Inst* inst) {
         const IR::Value arg = inst->GetArg(i);
         ret[i].value = arg;
         if (!arg.IsImmediate() && !IsValuelessType(arg.GetType())) {
-            assert(ValueLocation(arg.GetInst()) && "argument must already been defined");
-            ValueInfo(arg.GetInst()).uses_this_inst++;
+            assert(ValueLocation(arg.GetInst(block)) && "argument must already been defined");
+            ValueInfo(arg.GetInst(block)).uses_this_inst++;
         }
     }
     return ret;
@@ -136,7 +136,7 @@ void RegAlloc::DefineAsExisting(IR::Inst* inst, Argument& arg) {
         return;
     }
 
-    auto& info = ValueInfo(arg.value.GetInst());
+    auto& info = ValueInfo(arg.value.GetInst(block));
     info.values.emplace_back(inst);
     info.expected_uses += inst->UseCount();
 }
@@ -175,7 +175,7 @@ u32 RegAlloc::RealizeReadImpl(const IR::Value& value) {
         return GenerateImmediate<required_kind>(value);
     }
 
-    const auto current_location = ValueLocation(value.GetInst());
+    const auto current_location = ValueLocation(value.GetInst(block));
     assert(current_location);
 
     if (current_location->kind == required_kind) {

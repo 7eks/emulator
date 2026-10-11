@@ -71,7 +71,7 @@ enum class MemOp {
 /// The user of this class updates `current_location` as appropriate.
 class IREmitter {
 public:
-    explicit IREmitter(Block& block) : block(block), insertion_point(block.instructions.end()) {}
+    explicit IREmitter(Block& block) : block(block), insertion_point(block.end()) {}
 
     Block& block;
 
@@ -2012,12 +2012,12 @@ public:
     }
 
     U64 VectorTableLookup(const U64& defaults, const Table& table, const U64& indices) {
-        assert(table.GetInst()->GetArg(0).GetType() == Type::U64);
+        assert(table.GetInst(block)->GetArg(0).GetType() == Type::U64);
         return Inst<U64>(Opcode::VectorTableLookup64, defaults, table, indices);
     }
 
     U128 VectorTableLookup(const U128& defaults, const Table& table, const U128& indices) {
-        assert(table.GetInst()->GetArg(0).GetType() == Type::U128);
+        assert(table.GetInst(block)->GetArg(0).GetType() == Type::U128);
         return Inst<U128>(Opcode::VectorTableLookup128, defaults, table, indices);
     }
 
@@ -2949,7 +2949,7 @@ public:
     }
 
     void SetInsertionPointBefore(IR::Inst* new_insertion_point) {
-        insertion_point = IR::Block::iterator{*new_insertion_point};
+        insertion_point = block.IteratorTo(*new_insertion_point);
     }
 
     void SetInsertionPointBefore(IR::Block::iterator new_insertion_point) {
@@ -2957,7 +2957,7 @@ public:
     }
 
     void SetInsertionPointAfter(IR::Inst* new_insertion_point) {
-        insertion_point = IR::Block::iterator{*new_insertion_point};
+        insertion_point = block.IteratorTo(*new_insertion_point);
         ++insertion_point;
     }
 
@@ -2972,7 +2972,7 @@ protected:
     template<typename T = Value, typename... Args>
     T Inst(Opcode op, Args... args) {
         auto iter = block.PrependNewInst(insertion_point, op, {Value(args)...});
-        return T(Value(&*iter));
+        return T(iter->AsValue());
     }
 };
 

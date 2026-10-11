@@ -6,7 +6,6 @@ add_library(dynarmic STATIC
     mcl/bit.hpp
     mcl/function_info.hpp
     mcl/integer_of_size.hpp
-    mcl/intrusive_list.hpp
     mcl/is_instance_of_template.hpp
 
     backend/block_range_information.cpp

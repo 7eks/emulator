@@ -13,15 +13,19 @@
 
 #include "dynarmic/mcl/bit.hpp"
 
+#include "dynarmic/ir/basic_block.h"
 #include "dynarmic/ir/microinstruction.h"
 #include "dynarmic/ir/opcodes.h"
 #include "dynarmic/ir/type.h"
 
 namespace Dynarmic::IR {
 
-Value::Value(Inst* value)
-        : type(Type::Opaque) {
-    inner.inst = value;
+Value Value::FromInst(u32 index, Type inst_type) noexcept {
+    Value result{};
+    result.type = inst_type;
+    result.is_inst = true;
+    result.inner.inst_index = index;
+    return result;
 }
 
 Value::Value(A32::Reg value)
@@ -90,34 +94,32 @@ Value Value::EmptyNZCVImmediateMarker() {
     return result;
 }
 
-/// @brief ?
-bool Value::IsIdentity() const noexcept {
-    if (type == Type::Opaque)
-        return inner.inst->GetOpcode() == Opcode::Identity;
-    return false;
+Inst* Value::GetInst(Block& block) const noexcept {
+    assert(is_inst);
+    return &block.At(inner.inst_index);
 }
 
-bool Value::IsEmpty() const noexcept {
-    return type == Type::Void;
+const Inst* Value::GetInst(const Block& block) const noexcept {
+    assert(is_inst);
+    return &block.At(inner.inst_index);
 }
 
-bool Value::IsImmediate() const noexcept {
-    IR::Type current_type = type;
-    IR::Inst const* current_inst = inner.inst;
-    while (current_type == Type::Opaque && current_inst->GetOpcode() == Opcode::Identity) {
-        Value const& arg = current_inst->GetArg(0);
-        current_type = arg.type;
-        current_inst = arg.inner.inst;
+Inst* Value::GetInstRecursive(Block& block) const noexcept {
+    assert(is_inst);
+    Inst* inst = &block.At(inner.inst_index);
+    while (inst->GetOpcode() == Opcode::Identity && inst->args[0].IsInst()) {
+        inst = &block.At(inst->args[0].GetInstIndex());
     }
-    return current_type != Type::Opaque;
+    return inst;
 }
 
-Type Value::GetType() const noexcept {
-    if (IsIdentity())
-        return inner.inst->GetArg(0).GetType();
-    if (type == Type::Opaque)
-        return inner.inst->GetType();
-    return type;
+const Inst* Value::GetInstRecursive(const Block& block) const noexcept {
+    assert(is_inst);
+    const Inst* inst = &block.At(inner.inst_index);
+    while (inst->GetOpcode() == Opcode::Identity && inst->args[0].IsInst()) {
+        inst = &block.At(inst->args[0].GetInstIndex());
+    }
+    return inst;
 }
 
 A32::Reg Value::GetA32RegRef() const {
@@ -140,70 +142,42 @@ A64::Vec Value::GetA64VecRef() const {
     return inner.imm_a64vecref;
 }
 
-Inst* Value::GetInst() const {
-    assert(type == Type::Opaque);
-    return inner.inst;
-}
-
-Inst* Value::GetInstRecursive() const {
-    assert(type == Type::Opaque);
-    if (IsIdentity())
-        return inner.inst->GetArg(0).GetInstRecursive();
-    return inner.inst;
-}
-
 bool Value::GetU1() const {
-    if (IsIdentity())
-        return inner.inst->GetArg(0).GetU1();
     assert(type == Type::U1);
     return inner.imm_u1;
 }
 
 u8 Value::GetU8() const {
-    if (IsIdentity())
-        return inner.inst->GetArg(0).GetU8();
     assert(type == Type::U8);
     return inner.imm_u8;
 }
 
 u16 Value::GetU16() const {
-    if (IsIdentity())
-        return inner.inst->GetArg(0).GetU16();
     assert(type == Type::U16);
     return inner.imm_u16;
 }
 
 u32 Value::GetU32() const {
-    if (IsIdentity())
-        return inner.inst->GetArg(0).GetU32();
     assert(type == Type::U32);
     return inner.imm_u32;
 }
 
 u64 Value::GetU64() const {
-    if (IsIdentity())
-        return inner.inst->GetArg(0).GetU64();
     assert(type == Type::U64);
     return inner.imm_u64;
 }
 
 Value::CoprocessorInfo Value::GetCoprocInfo() const {
-    if (IsIdentity())
-        return inner.inst->GetArg(0).GetCoprocInfo();
     assert(type == Type::CoprocInfo);
     return inner.imm_coproc;
 }
 
 Cond Value::GetCond() const {
-    if (IsIdentity())
-        return inner.inst->GetArg(0).GetCond();
     assert(type == Type::Cond);
     return inner.imm_cond;
 }
 
 AccType Value::GetAccType() const {
-    if (IsIdentity())
-        return inner.inst->GetArg(0).GetAccType();
     assert(type == Type::AccType);
     return inner.imm_acctype;
 }

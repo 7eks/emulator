@@ -108,8 +108,11 @@ class RegAlloc {
 public:
     using ArgumentInfo = std::array<Argument, IR::max_arg_count>;
 
-    explicit RegAlloc(biscuit::Assembler& as, std::vector<u32> gpr_order, std::vector<u32> fpr_order)
-            : as{as}, gpr_order{gpr_order}, fpr_order{fpr_order}, rand_gen{std::random_device{}()} {}
+    explicit RegAlloc(biscuit::Assembler& as, std::vector<u32> gpr_order, std::vector<u32> fpr_order, IR::Block& block)
+            : block{block}, as{as}, gpr_order{gpr_order}, fpr_order{fpr_order}, rand_gen{std::random_device{}()} {}
+
+    /// The block being emitted: Values refer to its instructions by index.
+    IR::Block& block;
 
     ArgumentInfo GetArgumentInfo(IR::Inst* inst);
     bool IsValueLive(IR::Inst* inst) const;
@@ -117,8 +120,8 @@ public:
     auto ReadX(Argument& arg) { return RAReg<biscuit::GPR>{*this, false, arg.value}; }
     auto ReadD(Argument& arg) { return RAReg<biscuit::FPR>{*this, false, arg.value}; }
 
-    auto WriteX(IR::Inst* inst) { return RAReg<biscuit::GPR>{*this, true, IR::Value{inst}}; }
-    auto WriteD(IR::Inst* inst) { return RAReg<biscuit::FPR>{*this, true, IR::Value{inst}}; }
+    auto WriteX(IR::Inst* inst) { return RAReg<biscuit::GPR>{*this, true, inst->AsValue()}; }
+    auto WriteD(IR::Inst* inst) { return RAReg<biscuit::FPR>{*this, true, inst->AsValue()}; }
 
     void DefineAsExisting(IR::Inst* inst, Argument& arg);
 
@@ -168,14 +171,14 @@ template<typename T>
 RAReg<T>::RAReg(RegAlloc& reg_alloc, bool write, const IR::Value& value)
         : reg_alloc{reg_alloc}, write{write}, value{value} {
     if (!write && !value.IsImmediate()) {
-        reg_alloc.ValueInfo(value.GetInst()).locked++;
+        reg_alloc.ValueInfo(value.GetInst(reg_alloc.block)).locked++;
     }
 }
 
 template<typename T>
 RAReg<T>::~RAReg() {
     if (!value.IsImmediate()) {
-        reg_alloc.ValueInfo(value.GetInst()).locked--;
+        reg_alloc.ValueInfo(value.GetInst(reg_alloc.block)).locked--;
     }
     if (reg) {
         reg_alloc.ValueInfo(HostLoc{kind, reg->Index()}).realized = false;
@@ -184,7 +187,7 @@ RAReg<T>::~RAReg() {
 
 template<typename T>
 void RAReg<T>::Realize() {
-    reg = T{write ? reg_alloc.RealizeWriteImpl<kind>(value.GetInst()) : reg_alloc.RealizeReadImpl<kind>(value)};
+    reg = T{write ? reg_alloc.RealizeWriteImpl<kind>(value.GetInst(reg_alloc.block)) : reg_alloc.RealizeReadImpl<kind>(value)};
 }
 
 }  // namespace Dynarmic::Backend::RV64
