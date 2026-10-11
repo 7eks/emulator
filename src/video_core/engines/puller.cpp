@@ -93,35 +93,91 @@ void Puller::ProcessSemaphoreTriggerMethod() {
             flags |= VideoCommon::QueryPropertiesFlags::HasTimeout;
         }
         rasterizer->Query(sequence_address, VideoCommon::QueryType::Payload, flags, payload, 0);
+    } else if (op == GpuSemaphoreOperation::AcquireEqual ||
+               op == GpuSemaphoreOperation::AcquireGequal ||
+               op == GpuSemaphoreOperation::AcquireMask) {
+        const GPUVAddr address{regs.semaphore_address.SemaphoreAddress()};
+        const u32 payload = regs.semaphore_sequence;
+        regs.acquire_source = true;
+        regs.acquire_value = payload;
+        if (op != GpuSemaphoreOperation::AcquireMask) {
+            regs.acquire_active = true;
+            regs.acquire_mode = op == GpuSemaphoreOperation::AcquireGequal;
+        }
+        if (AcquirePasses(op, memory_manager.Read<u32>(address), payload)) {
+            return;
+        }
+        // The release may be one this or another channel made earlier that still waits for a
+        // host fence; make those writes first.
+        rasterizer->ReleaseFences();
+        if (AcquirePasses(op, memory_manager.Read<u32>(address), payload)) {
+            return;
+        }
+        // dev_pbdma.ref.txt (Volta, NV_UDMA_SEM_EXECUTE; open-gpu-doc has no Maxwell host
+        // manual): after a failed acquire Host processes no further methods of the channel,
+        // switches to another channel and polls the semaphore when it comes back. The pusher stops
+        // this channel here and the GPU thread retries it (RetryPendingAcquire).
+        pending_acquire = PendingAcquire{address, payload, op, std::chrono::steady_clock::now()};
     } else {
-        do {
-            const u32 word{memory_manager.Read<u32>(regs.semaphore_address.SemaphoreAddress())};
-            regs.acquire_source = true;
-            regs.acquire_value = regs.semaphore_sequence;
-            if (op == GpuSemaphoreOperation::AcquireEqual) {
-                regs.acquire_active = true;
-                regs.acquire_mode = false;
-                if (word != regs.acquire_value) {
-                    rasterizer->ReleaseFences();
-                    continue;
-                }
-            } else if (op == GpuSemaphoreOperation::AcquireGequal) {
-                regs.acquire_active = true;
-                regs.acquire_mode = true;
-                if (word < regs.acquire_value) {
-                    rasterizer->ReleaseFences();
-                    continue;
-                }
-            } else if (op == GpuSemaphoreOperation::AcquireMask) {
-                if (word && regs.semaphore_sequence == 0) {
-                    rasterizer->ReleaseFences();
-                    continue;
-                }
-            } else {
-                LOG_ERROR(HW_GPU, "Invalid semaphore operation");
-            }
-        } while (false);
+        LOG_ERROR(HW_GPU, "Invalid semaphore operation {:#x}", static_cast<u32>(op));
     }
+}
+
+constexpr bool Puller::AcquirePasses(GpuSemaphoreOperation op, u32 word, u32 payload) {
+    switch (op) {
+    case GpuSemaphoreOperation::AcquireEqual:
+        return word == payload;
+    case GpuSemaphoreOperation::AcquireGequal:
+        // Unsigned compare, the same test as before this change.
+        return word >= payload;
+    case GpuSemaphoreOperation::AcquireMask:
+        // dev_pbdma.ref.txt (Volta) ACQ_AND: passes when (semaphore & payload) != 0.
+        return (word & payload) != 0;
+    default:
+        return true;
+    }
+}
+
+bool Puller::RetryPendingAcquire(bool flush) {
+    static_assert(AcquirePasses(GpuSemaphoreOperation::AcquireEqual, 1, 1));
+    static_assert(!AcquirePasses(GpuSemaphoreOperation::AcquireEqual, 2, 1));
+    static_assert(AcquirePasses(GpuSemaphoreOperation::AcquireGequal, 2, 1));
+    static_assert(!AcquirePasses(GpuSemaphoreOperation::AcquireGequal, 0, 1));
+    static_assert(AcquirePasses(GpuSemaphoreOperation::AcquireMask, 3, 1));
+    static_assert(!AcquirePasses(GpuSemaphoreOperation::AcquireMask, 2, 1));
+    static_assert(!AcquirePasses(GpuSemaphoreOperation::AcquireMask, 0, 1));
+    if (!pending_acquire) {
+        return true;
+    }
+    const PendingAcquire& acquire = *pending_acquire;
+    if (AcquirePasses(acquire.op, memory_manager.Read<u32>(acquire.address), acquire.payload)) {
+        pending_acquire.reset();
+        return true;
+    }
+    if (flush) {
+        rasterizer->ReleaseFences();
+        if (AcquirePasses(acquire.op, memory_manager.Read<u32>(acquire.address), acquire.payload)) {
+            pending_acquire.reset();
+            return true;
+        }
+    }
+    // Not hardware behaviour. Host keeps polling and, with an acquire timeout set, raises an
+    // interrupt for the driver (dev_pbdma.ref.txt, ACQUIRE_DEADLINE); it does not run past the
+    // acquire. The emulator gives up after this long so that a release it never writes stalls
+    // the channel for a while instead of forever. Before this change every acquire passed at once.
+    static constexpr auto give_up_after = std::chrono::seconds{1};
+    const auto waited = std::chrono::steady_clock::now() - acquire.since;
+    if (waited < give_up_after) {
+        return false;
+    }
+    LOG_WARNING(HW_GPU,
+                "Semaphore acquire not satisfied after {} ms, continuing: address {:#x} op {:#x} "
+                "payload {:#x} value {:#x}",
+                std::chrono::duration_cast<std::chrono::milliseconds>(waited).count(),
+                acquire.address, static_cast<u32>(acquire.op), acquire.payload,
+                memory_manager.Read<u32>(acquire.address));
+    pending_acquire.reset();
+    return true;
 }
 
 void Puller::ProcessSemaphoreRelease() {
