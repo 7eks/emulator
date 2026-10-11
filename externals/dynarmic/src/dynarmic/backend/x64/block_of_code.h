@@ -12,6 +12,7 @@
 #include <functional>
 #include <memory>
 #include <type_traits>
+#include <utility>
 
 #include "dynarmic/common/common_types.h"
 #include "common/x64/xbyak.h"
@@ -110,7 +111,7 @@ public:
         case 64:
             return;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 

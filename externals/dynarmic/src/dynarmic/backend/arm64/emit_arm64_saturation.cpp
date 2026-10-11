@@ -6,6 +6,9 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
+#include <utility>
+
 #include <oaknut/oaknut.hpp>
 
 #include "dynarmic/backend/arm64/a32_jitstate.h"
@@ -24,7 +27,7 @@ using namespace oaknut::util;
 template<>
 void EmitIR<IR::Opcode::SignedSaturatedAddWithFlag32>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
     const auto overflow_inst = inst->GetAssociatedPseudoOperation(IR::Opcode::GetOverflowFromOp);
-    ASSERT(overflow_inst);
+    assert(overflow_inst);
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     auto Wresult = ctx.reg_alloc.WriteW(inst);
@@ -44,7 +47,7 @@ void EmitIR<IR::Opcode::SignedSaturatedAddWithFlag32>(oaknut::CodeGenerator& cod
 template<>
 void EmitIR<IR::Opcode::SignedSaturatedSubWithFlag32>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
     const auto overflow_inst = inst->GetAssociatedPseudoOperation(IR::Opcode::GetOverflowFromOp);
-    ASSERT(overflow_inst);
+    assert(overflow_inst);
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     auto Wresult = ctx.reg_alloc.WriteW(inst);
@@ -67,7 +70,7 @@ void EmitIR<IR::Opcode::SignedSaturation>(oaknut::CodeGenerator& code, EmitConte
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const std::size_t N = args[1].GetImmediateU8();
-    ASSERT(N >= 1 && N <= 32);
+    assert(N >= 1 && N <= 32);
 
     if (N == 32) {
         ctx.reg_alloc.DefineAsExisting(inst, args[0]);
@@ -113,7 +116,7 @@ void EmitIR<IR::Opcode::UnsignedSaturation>(oaknut::CodeGenerator& code, EmitCon
     ctx.reg_alloc.SpillFlags();
 
     const std::size_t N = args[1].GetImmediateU8();
-    ASSERT(N <= 31);
+    assert(N <= 31);
     const u32 saturated_value = (1u << N) - 1;
 
     code.MOV(Wscratch0, saturated_value);
@@ -134,7 +137,7 @@ void EmitIR<IR::Opcode::SignedSaturatedAdd8>(oaknut::CodeGenerator& code, EmitCo
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -142,7 +145,7 @@ void EmitIR<IR::Opcode::SignedSaturatedAdd16>(oaknut::CodeGenerator& code, EmitC
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -150,7 +153,7 @@ void EmitIR<IR::Opcode::SignedSaturatedAdd32>(oaknut::CodeGenerator& code, EmitC
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -158,7 +161,7 @@ void EmitIR<IR::Opcode::SignedSaturatedAdd64>(oaknut::CodeGenerator& code, EmitC
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -166,7 +169,7 @@ void EmitIR<IR::Opcode::SignedSaturatedDoublingMultiplyReturnHigh16>(oaknut::Cod
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -174,7 +177,7 @@ void EmitIR<IR::Opcode::SignedSaturatedDoublingMultiplyReturnHigh32>(oaknut::Cod
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -182,7 +185,7 @@ void EmitIR<IR::Opcode::SignedSaturatedSub8>(oaknut::CodeGenerator& code, EmitCo
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -190,7 +193,7 @@ void EmitIR<IR::Opcode::SignedSaturatedSub16>(oaknut::CodeGenerator& code, EmitC
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -198,7 +201,7 @@ void EmitIR<IR::Opcode::SignedSaturatedSub32>(oaknut::CodeGenerator& code, EmitC
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -206,7 +209,7 @@ void EmitIR<IR::Opcode::SignedSaturatedSub64>(oaknut::CodeGenerator& code, EmitC
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -214,7 +217,7 @@ void EmitIR<IR::Opcode::UnsignedSaturatedAdd8>(oaknut::CodeGenerator& code, Emit
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -222,7 +225,7 @@ void EmitIR<IR::Opcode::UnsignedSaturatedAdd16>(oaknut::CodeGenerator& code, Emi
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -230,7 +233,7 @@ void EmitIR<IR::Opcode::UnsignedSaturatedAdd32>(oaknut::CodeGenerator& code, Emi
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -238,7 +241,7 @@ void EmitIR<IR::Opcode::UnsignedSaturatedAdd64>(oaknut::CodeGenerator& code, Emi
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -246,7 +249,7 @@ void EmitIR<IR::Opcode::UnsignedSaturatedSub8>(oaknut::CodeGenerator& code, Emit
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -254,7 +257,7 @@ void EmitIR<IR::Opcode::UnsignedSaturatedSub16>(oaknut::CodeGenerator& code, Emi
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -262,7 +265,7 @@ void EmitIR<IR::Opcode::UnsignedSaturatedSub32>(oaknut::CodeGenerator& code, Emi
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -270,7 +273,7 @@ void EmitIR<IR::Opcode::UnsignedSaturatedSub64>(oaknut::CodeGenerator& code, Emi
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 }  // namespace Dynarmic::Backend::Arm64

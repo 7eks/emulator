@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
 #include <optional>
 
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
@@ -48,7 +49,7 @@ static bool SharedDecodeAndOperation(TranslatorVisitor& v, bool wback, IR::MemOp
     default:
         return v.UnallocatedEncoding();
     }
-    ASSERT(rpt == 1 || selem == 1);
+    assert(rpt == 1 || selem == 1);
 
     if ((size == 0b11 && !Q) && selem != 1) {
         return v.ReservedValue();

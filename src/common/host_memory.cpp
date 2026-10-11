@@ -185,7 +185,7 @@ public:
         if (!IsNiechePlaceholder(virtual_offset, length)) {
             Split(virtual_offset, length);
         }
-        ASSERT(placeholders.find({virtual_offset, virtual_offset + length}) == placeholders.end());
+        assert(placeholders.find({virtual_offset, virtual_offset + length}) == placeholders.end());
         TrackPlaceholder(virtual_offset, host_offset, length);
 
         MapView(virtual_offset, host_offset, length);
@@ -227,7 +227,7 @@ public:
 
     void EnableDirectMappedAddress() {
         // TODO
-        UNREACHABLE();
+        std::unreachable();
     }
 
     const size_t backing_size; ///< Size of the backing memory in bytes
@@ -279,11 +279,11 @@ private:
         const size_t placeholder_end = it->upper();
         const size_t unmap_begin = std::max(virtual_offset, placeholder_begin);
         const size_t unmap_end = std::min(virtual_offset + length, placeholder_end);
-        ASSERT(unmap_begin >= placeholder_begin && unmap_begin < placeholder_end);
-        ASSERT(unmap_end <= placeholder_end && unmap_end > placeholder_begin);
+        assert(unmap_begin >= placeholder_begin && unmap_begin < placeholder_end);
+        assert(unmap_end <= placeholder_end && unmap_end > placeholder_begin);
 
         const auto host_pointer_it = placeholder_host_pointers.find(placeholder_begin);
-        ASSERT(host_pointer_it != placeholder_host_pointers.end());
+        assert(host_pointer_it != placeholder_host_pointers.end());
         const size_t host_offset = host_pointer_it->second;
 
         const bool split_left = unmap_begin > placeholder_begin;
@@ -670,8 +670,8 @@ public:
             flags |= PROT_EXEC;
         }
 #endif
-        int ret = mprotect(virtual_base + virtual_offset, length, flags);
-        ASSERT_MSG(ret == 0, "mprotect failed: {}", strerror(errno));
+        [[maybe_unused]] int ret = mprotect(virtual_base + virtual_offset, length, flags);
+        assert(ret == 0 && "mprotect failed: {}" && (void(errno), true));
     }
 
     void EnableDirectMappedAddress() {
@@ -787,19 +787,19 @@ private:
     /// Release all resources in the object
     void Release() {
         if (virtual_map_base != MAP_FAILED) {
-            int ret = munmap(virtual_map_base, virtual_size);
-            ASSERT_MSG(ret == 0, "munmap failed: {}", strerror(errno));
+            [[maybe_unused]] int ret = munmap(virtual_map_base, virtual_size);
+            assert(ret == 0 && "munmap failed: {}" && (void(errno), true));
         }
 
         if (backing_base != MAP_FAILED) {
-            int ret = munmap(backing_base, backing_size);
-            ASSERT_MSG(ret == 0, "munmap failed: {}", strerror(errno));
+            [[maybe_unused]] int ret = munmap(backing_base, backing_size);
+            assert(ret == 0 && "munmap failed: {}" && (void(errno), true));
         }
 
         for (const int fd : fds) {
             if (fd != -1) {
-                int ret = close(fd);
-                ASSERT_MSG(ret == 0, "close failed: {}", strerror(errno));
+                [[maybe_unused]] int ret = close(fd);
+                assert(ret == 0 && "close failed: {}" && (void(errno), true));
             }
         }
     }

@@ -4,6 +4,7 @@
  */
 
 #include <optional>
+#include <utility>
 
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
 
@@ -69,7 +70,7 @@ static bool ExclusiveSharedDecodeAndOperation(TranslatorVisitor& v, bool pair, s
         break;
     }
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 
     return true;
@@ -172,7 +173,7 @@ static bool OrderedSharedDecodeAndOperation(TranslatorVisitor& v, size_t size, b
         break;
     }
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 
     return true;

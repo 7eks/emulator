@@ -259,7 +259,7 @@ T MemoryManager::Read(GPUVAddr addr) const {
         return value;
     }
 
-    ASSERT(false);
+    assert(false);
 
     return {};
 }
@@ -272,7 +272,7 @@ void MemoryManager::Write(GPUVAddr addr, T data) {
         return;
     }
 
-    ASSERT(false);
+    assert(false);
 }
 
 template u8 MemoryManager::Read<u8>(GPUVAddr addr) const;

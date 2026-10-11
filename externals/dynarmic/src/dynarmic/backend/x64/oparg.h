@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include "dynarmic/common/assert.h"
+#include <utility>
+
 #include "dynarmic/backend/x64/xbyak.h"
 
 namespace Dynarmic::Backend::X64 {
@@ -30,7 +31,7 @@ struct OpArg {
         case Type::Reg:
             return inner_reg;
         }
-        UNREACHABLE();
+        std::unreachable();
     }
 
     void setBit(int bits) {
@@ -57,7 +58,7 @@ struct OpArg {
                 return;
             }
         }
-        UNREACHABLE();
+        std::unreachable();
     }
 
 private:

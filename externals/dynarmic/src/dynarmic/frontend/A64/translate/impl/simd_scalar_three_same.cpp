@@ -7,6 +7,7 @@
  */
 
 #include <optional>
+#include <utility>
 
 #include "dynarmic/mcl/bit.hpp"
 
@@ -120,7 +121,7 @@ bool ScalarFPCompareRegister(TranslatorVisitor& v, bool sz, Vec Vm, Vec Vn, Vec 
                                         v.ir.FPVectorAbs(esize, operand2));
         }
 
-        UNREACHABLE();
+        std::unreachable();
     }();
 
     v.V_scalar(datasize, Vd, v.ir.VectorGetElement(esize, result, 0));

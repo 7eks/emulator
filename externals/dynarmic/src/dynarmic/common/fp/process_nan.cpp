@@ -8,9 +8,9 @@
 
 #include "dynarmic/common/fp/process_nan.h"
 
+#include <cassert>
 #include <optional>
 
-#include "dynarmic/common/assert.h"
 #include "dynarmic/mcl/bit.hpp"
 
 #include "dynarmic/common/fp/fpcr.h"
@@ -23,7 +23,7 @@ namespace Dynarmic::FP {
 
 template<typename FPT>
 FPT FPProcessNaN(FPType type, FPT op, FPCR fpcr, FPSR& fpsr) {
-    ASSERT(type == FPType::QNaN || type == FPType::SNaN);
+    assert(type == FPType::QNaN || type == FPType::SNaN);
 
     constexpr size_t topfrac = FPInfo<FPT>::explicit_mantissa_width - 1;
 

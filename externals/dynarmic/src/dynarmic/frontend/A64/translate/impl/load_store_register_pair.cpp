@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <utility>
+
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
 
 namespace Dynarmic::A64 {
@@ -63,7 +65,7 @@ bool TranslatorVisitor::STP_LDP_gen(Imm<2> opc, bool not_postindex, bool wback, 
         break;
     }
     case IR::MemOp::PREFETCH:
-        UNREACHABLE();
+        std::unreachable();
     }
 
     if (wback) {
@@ -133,7 +135,7 @@ bool TranslatorVisitor::STP_LDP_fpsimd(Imm<2> opc, bool not_postindex, bool wbac
         break;
     }
     case IR::MemOp::PREFETCH:
-        UNREACHABLE();
+        std::unreachable();
     }
 
     if (wback) {

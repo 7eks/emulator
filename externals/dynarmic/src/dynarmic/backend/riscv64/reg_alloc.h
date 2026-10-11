@@ -16,7 +16,6 @@
 
 #include <biscuit/assembler.hpp>
 #include <biscuit/registers.hpp>
-#include "dynarmic/common/assert.h"
 #include "dynarmic/common/common_types.h"
 #include "dynarmic/mcl/is_instance_of_template.hpp"
 #include "dynarmic/common/container/unordered_map.h"

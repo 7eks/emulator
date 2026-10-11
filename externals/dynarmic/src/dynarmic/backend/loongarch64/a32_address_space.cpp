@@ -3,7 +3,7 @@
 
 #include "dynarmic/backend/loongarch64/a32_address_space.h"
 
-#include "dynarmic/common/assert.h"
+#include <cassert>
 
 #include "dynarmic/backend/loongarch64/a32_jitstate.h"
 #include "dynarmic/backend/loongarch64/abi.h"
@@ -115,7 +115,7 @@ void A32AddressSpace::Link(EmittedBlockInfo& block_info) {
             break;
         }
         default:
-            ASSERT(false && "Invalid relocation target");
+            assert(false && "Invalid relocation target");
         }
     }
 }

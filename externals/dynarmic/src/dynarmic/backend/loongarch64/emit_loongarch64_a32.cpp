@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <cassert>
+
 #include "dynarmic/backend/loongarch64/lagoon_cpp.h"
 
 #include "dynarmic/backend/loongarch64/a32_jitstate.h"
@@ -41,7 +43,7 @@ template<>
 void EmitIR<IR::Opcode::A32SetCpsrNZC>(lagoon_assembler_t& as, EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    ASSERT(!args[0].IsImmediate() && !args[1].IsImmediate());
+    assert(!args[0].IsImmediate() && !args[1].IsImmediate());
 
     auto Xnz = ctx.reg_alloc.ReadX(args[0]);
     auto Xc = ctx.reg_alloc.ReadX(args[1]);

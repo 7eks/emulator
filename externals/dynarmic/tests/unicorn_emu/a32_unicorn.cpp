@@ -7,13 +7,15 @@
  */
 
 #include <type_traits>
+#include <utility>
+#include <cassert>
+
 #include <fmt/format.h>
 #include "dynarmic/mcl/bit.hpp"
 #include "dynarmic/tests/unicorn_emu/a32_unicorn.h"
-#include "dynarmic/common/assert.h"
 #include "dynarmic/tests/A32/testenv.h"
 
-#define CHECKED(expr) do if ((expr)) ASSERT(false && "Call " #expr " failed with error\n"); while (0)
+#define CHECKED(expr) do if ((expr)) assert(false && "Call " #expr " failed with error\n"); while (0)
 
 constexpr u32 BEGIN_ADDRESS = 0;
 constexpr u32 END_ADDRESS = ~u32(0);
@@ -336,7 +338,7 @@ bool A32Unicorn<TestEnvironment>::MemoryWriteHook(uc_engine* /*uc*/, uc_mem_type
         this_->testenv.MemoryWrite64(start_address, value);
         break;
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 
     return true;

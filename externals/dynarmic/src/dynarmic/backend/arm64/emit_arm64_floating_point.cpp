@@ -6,6 +6,9 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
+#include <utility>
+
 #include <oaknut/oaknut.hpp>
 
 #include "dynarmic/backend/arm64/a32_jitstate.h"
@@ -68,7 +71,7 @@ static void EmitConvert(oaknut::CodeGenerator&, EmitContext& ctx, IR::Inst* inst
     RegAlloc::Realize(Vto, Vfrom);
     ctx.fpsr.Load();
 
-    ASSERT(rounding_mode == ctx.FPCR().RMode());
+    assert(rounding_mode == ctx.FPCR().RMode());
 
     emit(Vto, Vfrom);
 }
@@ -106,8 +109,8 @@ static void EmitToFixed(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst*
             }
         }
     } else {
-        ASSERT(fbits == 0);
-        ASSERT(bitsize_to != 16);
+        assert(fbits == 0);
+        assert(bitsize_to != 16);
         if constexpr (is_signed) {
             switch (rounding_mode) {
             case FP::RoundingMode::ToNearest_TieEven:
@@ -126,10 +129,10 @@ static void EmitToFixed(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst*
                 code.FCVTAS(Rto, Vfrom);
                 break;
             case FP::RoundingMode::ToOdd:
-                UNREACHABLE();
+                std::unreachable();
                 break;
             default:
-                UNREACHABLE();
+                std::unreachable();
             }
         } else {
             switch (rounding_mode) {
@@ -149,10 +152,10 @@ static void EmitToFixed(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst*
                 code.FCVTAU(Rto, Vfrom);
                 break;
             case FP::RoundingMode::ToOdd:
-                UNREACHABLE();
+                std::unreachable();
                 break;
             default:
-                UNREACHABLE();
+                std::unreachable();
             }
         }
     }
@@ -189,7 +192,7 @@ void EmitIR<IR::Opcode::FPAbs16>(oaknut::CodeGenerator& code, EmitContext& ctx, 
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -316,7 +319,7 @@ void EmitIR<IR::Opcode::FPMulAdd16>(oaknut::CodeGenerator& code, EmitContext& ct
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -334,7 +337,7 @@ void EmitIR<IR::Opcode::FPMulSub16>(oaknut::CodeGenerator& code, EmitContext& ct
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -362,7 +365,7 @@ void EmitIR<IR::Opcode::FPNeg16>(oaknut::CodeGenerator& code, EmitContext& ctx, 
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -380,7 +383,7 @@ void EmitIR<IR::Opcode::FPRecipEstimate16>(oaknut::CodeGenerator& code, EmitCont
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -398,7 +401,7 @@ void EmitIR<IR::Opcode::FPRecipExponent16>(oaknut::CodeGenerator& code, EmitCont
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -416,7 +419,7 @@ void EmitIR<IR::Opcode::FPRecipStepFused16>(oaknut::CodeGenerator& code, EmitCon
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -434,7 +437,7 @@ void EmitIR<IR::Opcode::FPRoundInt16>(oaknut::CodeGenerator& code, EmitContext& 
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -449,7 +452,7 @@ void EmitIR<IR::Opcode::FPRoundInt32>(oaknut::CodeGenerator& code, EmitContext& 
     ctx.fpsr.Load();
 
     if (exact) {
-        ASSERT(ctx.FPCR().RMode() == rounding_mode);
+        assert(ctx.FPCR().RMode() == rounding_mode);
         code.FRINTX(Sresult, Soperand);
     } else {
         switch (rounding_mode) {
@@ -469,7 +472,7 @@ void EmitIR<IR::Opcode::FPRoundInt32>(oaknut::CodeGenerator& code, EmitContext& 
             code.FRINTA(Sresult, Soperand);
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 }
@@ -486,7 +489,7 @@ void EmitIR<IR::Opcode::FPRoundInt64>(oaknut::CodeGenerator& code, EmitContext& 
     ctx.fpsr.Load();
 
     if (exact) {
-        ASSERT(ctx.FPCR().RMode() == rounding_mode);
+        assert(ctx.FPCR().RMode() == rounding_mode);
         code.FRINTX(Dresult, Doperand);
     } else {
         switch (rounding_mode) {
@@ -506,7 +509,7 @@ void EmitIR<IR::Opcode::FPRoundInt64>(oaknut::CodeGenerator& code, EmitContext& 
             code.FRINTA(Dresult, Doperand);
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 }
@@ -516,7 +519,7 @@ void EmitIR<IR::Opcode::FPRSqrtEstimate16>(oaknut::CodeGenerator& code, EmitCont
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -534,7 +537,7 @@ void EmitIR<IR::Opcode::FPRSqrtStepFused16>(oaknut::CodeGenerator& code, EmitCon
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -648,7 +651,7 @@ void EmitIR<IR::Opcode::FPHalfToFixedS16>(oaknut::CodeGenerator& code, EmitConte
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -656,7 +659,7 @@ void EmitIR<IR::Opcode::FPHalfToFixedS32>(oaknut::CodeGenerator& code, EmitConte
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -664,7 +667,7 @@ void EmitIR<IR::Opcode::FPHalfToFixedS64>(oaknut::CodeGenerator& code, EmitConte
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -672,7 +675,7 @@ void EmitIR<IR::Opcode::FPHalfToFixedU16>(oaknut::CodeGenerator& code, EmitConte
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -680,7 +683,7 @@ void EmitIR<IR::Opcode::FPHalfToFixedU32>(oaknut::CodeGenerator& code, EmitConte
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -688,7 +691,7 @@ void EmitIR<IR::Opcode::FPHalfToFixedU64>(oaknut::CodeGenerator& code, EmitConte
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>

@@ -6,6 +6,9 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
+#include <utility>
+
 #include <biscuit/assembler.hpp>
 #include <fmt/ostream.h>
 
@@ -108,7 +111,7 @@ void EmitA32Cond(biscuit::Assembler& as, EmitContext&, IR::Cond cond, biscuit::L
         as.BNEZ(Xscratch0, label);
         break;
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 
@@ -206,7 +209,7 @@ void EmitA32LeafTerminal(biscuit::Assembler& as, EmitContext& ctx, IR::Term::Lea
         return EmitA32LeafTerminal(as, ctx, *x, initial_location, is_single_step);
     if (auto const x = std::get_if<IR::Term::FastDispatchHint>(&terminal))
         return EmitA32LeafTerminal(as, ctx, *x, initial_location, is_single_step);
-    UNREACHABLE();
+    std::unreachable();
 }
 
 void EmitA32Terminal(biscuit::Assembler& as, EmitContext& ctx, IR::Term::Terminal terminal, IR::LocationDescriptor initial_location, bool is_single_step) {
@@ -218,7 +221,7 @@ void EmitA32Terminal(biscuit::Assembler& as, EmitContext& ctx, IR::Term::Termina
         return EmitA32Terminal(as, ctx, *x, initial_location, is_single_step);
     if (auto const x = std::get_if<IR::Term::CheckHalt>(&terminal))
         return EmitA32Terminal(as, ctx, *x, initial_location, is_single_step);
-    UNREACHABLE();
+    std::unreachable();
 }
 
 void EmitA32Terminal(biscuit::Assembler& as, EmitContext& ctx) {
@@ -228,7 +231,7 @@ void EmitA32Terminal(biscuit::Assembler& as, EmitContext& ctx) {
 
 template<>
 void EmitIR<IR::Opcode::A32SetCheckBit>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
@@ -243,17 +246,17 @@ void EmitIR<IR::Opcode::A32GetRegister>(biscuit::Assembler& as, EmitContext& ctx
 
 template<>
 void EmitIR<IR::Opcode::A32GetExtendedRegister32>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32GetExtendedRegister64>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32GetVector>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
@@ -272,27 +275,27 @@ void EmitIR<IR::Opcode::A32SetRegister>(biscuit::Assembler& as, EmitContext& ctx
 
 template<>
 void EmitIR<IR::Opcode::A32SetExtendedRegister32>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32SetExtendedRegister64>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32SetVector>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32GetCpsr>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32SetCpsr>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
@@ -307,17 +310,17 @@ void EmitIR<IR::Opcode::A32SetCpsrNZCV>(biscuit::Assembler& as, EmitContext& ctx
 
 template<>
 void EmitIR<IR::Opcode::A32SetCpsrNZCVRaw>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32SetCpsrNZCVQ>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32SetCpsrNZ>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
@@ -325,7 +328,7 @@ void EmitIR<IR::Opcode::A32SetCpsrNZC>(biscuit::Assembler& as, EmitContext& ctx,
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
     // TODO: Add full implementation
-    ASSERT(!args[0].IsImmediate() && !args[1].IsImmediate());
+    assert(!args[0].IsImmediate() && !args[1].IsImmediate());
 
     auto Xnz = ctx.reg_alloc.ReadX(args[0]);
     auto Xc = ctx.reg_alloc.ReadX(args[1]);
@@ -341,82 +344,82 @@ void EmitIR<IR::Opcode::A32SetCpsrNZC>(biscuit::Assembler& as, EmitContext& ctx,
 
 template<>
 void EmitIR<IR::Opcode::A32GetCFlag>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32OrQFlag>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32GetGEFlags>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32SetGEFlags>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32SetGEFlagsCompressed>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32BXWritePC>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32UpdateUpperLocationDescriptor>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32CallSupervisor>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32ExceptionRaised>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32DataSynchronizationBarrier>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32DataMemoryBarrier>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32InstructionSynchronizationBarrier>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32GetFpscr>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32SetFpscr>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32GetFpscrNZCV>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::A32SetFpscrNZCV>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 }  // namespace Dynarmic::Backend::RV64

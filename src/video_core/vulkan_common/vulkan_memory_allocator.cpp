@@ -56,7 +56,7 @@ struct Range {
         return VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
     }
-    ASSERT_MSG(false, "Invalid memory usage={}", usage);
+    assert(false && "Invalid memory usage={}" && (void(usage), true));
     return VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 }
 
@@ -129,7 +129,7 @@ public:
 
     void Free(u64 begin) {
         const auto it = std::ranges::find(commits, begin, &Range::begin);
-        ASSERT_MSG(it != commits.end(), "Invalid commit");
+        assert(it != commits.end() && "Invalid commit");
         commits.erase(it);
         if (commits.empty()) {
             // Do not call any code involving 'this' after this call, the object will be destroyed
@@ -156,7 +156,7 @@ private:
     }
 
     [[nodiscard]] std::optional<u64> FindFreeRegion(u64 size, u64 alignment) noexcept {
-        ASSERT(std::has_single_bit(alignment));
+        assert(std::has_single_bit(alignment));
         const u64 alignment_log2 = std::countr_zero(alignment);
         std::optional<u64> candidate;
         u64 iterator = 0;
@@ -398,7 +398,7 @@ bool MemoryAllocator::TryAllocMemory(VkMemoryPropertyFlags flags, u32 type_mask,
 
 void MemoryAllocator::ReleaseMemory(MemoryAllocation* alloc) {
     const auto it = std::ranges::find(allocations, alloc, &std::unique_ptr<MemoryAllocation>::get);
-    ASSERT(it != allocations.end());
+    assert(it != allocations.end());
     allocations.erase(it);
 }
 
@@ -433,7 +433,7 @@ VkMemoryPropertyFlags MemoryAllocator::MemoryPropertyFlags(u32 type_mask,
         // Remove device local, if it's not supported by the requested resource
         return MemoryPropertyFlags(type_mask, flags & ~VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     }
-    ASSERT_MSG(false, "No compatible memory types found");
+    assert(false && "No compatible memory types found");
     return 0;
 }
 

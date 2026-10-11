@@ -6,6 +6,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
+
 #include "dynarmic/mcl/bit.hpp"
 
 #include "dynarmic/frontend/A32/translate/impl/a32_translate_impl.h"
@@ -687,7 +689,7 @@ bool TranslatorVisitor::thumb16_NOP() {
 
 // IT{<x>{<y>{<z>}}} <cond>
 bool TranslatorVisitor::thumb16_IT(Imm<8> imm8) {
-    ASSERT((imm8.Bits<0, 3>() != 0b0000) && "Decode Error");
+    assert((imm8.Bits<0, 3>() != 0b0000) && "Decode Error");
     if (imm8.Bits<4, 7>() == 0b1111 || (imm8.Bits<4, 7>() == 0b1110 && std::popcount(imm8.Bits<0, 3>()) != 1)) {
         return UnpredictableInstruction();
     }

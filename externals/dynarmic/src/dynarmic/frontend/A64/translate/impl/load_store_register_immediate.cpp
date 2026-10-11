@@ -3,6 +3,9 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
+#include <utility>
+
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
 
 namespace Dynarmic::A64 {
@@ -18,10 +21,10 @@ static bool LoadStoreRegisterImmediate(TranslatorVisitor& v, bool wback, bool po
         signed_ = false;
     } else if (size == 0b11) {
         memop = IR::MemOp::PREFETCH;
-        ASSERT(!opc.Bit<0>());
+        assert(!opc.Bit<0>());
     } else {
         memop = IR::MemOp::LOAD;
-        ASSERT(!(size == 0b10 && opc.Bit<0>() == 1));
+        assert(!(size == 0b10 && opc.Bit<0>() == 1));
         regsize = opc.Bit<0>() ? 32 : 64;
         signed_ = true;
     }
@@ -150,7 +153,7 @@ static bool LoadStoreSIMD(TranslatorVisitor& v, bool wback, bool postindex, size
         }
         break;
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 
     if (wback) {

@@ -6,6 +6,9 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
+#include <utility>
+
 #include "dynarmic/mcl/bit.hpp"
 
 #include "dynarmic/frontend/A32/translate/impl/a32_translate_impl.h"
@@ -95,7 +98,7 @@ bool TranslatorVisitor::arm_LDR_imm(Cond cond, bool P, bool U, bool W, Reg n, Re
         return UnpredictableInstruction();
     }
 
-    ASSERT(!(!P && W) && "T form of instruction unimplemented");
+    assert(!(!P && W) && "T form of instruction unimplemented");
     if ((!P || W) && n == t) {
         return UnpredictableInstruction();
     }
@@ -126,7 +129,7 @@ bool TranslatorVisitor::arm_LDR_imm(Cond cond, bool P, bool U, bool W, Reg n, Re
 // LDR <Rt>, [<Rn>, #+/-<Rm>]{!}
 // LDR <Rt>, [<Rn>], #+/-<Rm>
 bool TranslatorVisitor::arm_LDR_reg(Cond cond, bool P, bool U, bool W, Reg n, Reg t, Imm<5> imm5, ShiftType shift, Reg m) {
-    ASSERT(!(!P && W) && "T form of instruction unimplemented");
+    assert(!(!P && W) && "T form of instruction unimplemented");
     if (m == Reg::PC) {
         return UnpredictableInstruction();
     }
@@ -184,7 +187,7 @@ bool TranslatorVisitor::arm_LDRB_imm(Cond cond, bool P, bool U, bool W, Reg n, R
         return UnpredictableInstruction();
     }
 
-    ASSERT(!(!P && W) && "T form of instruction unimplemented");
+    assert(!(!P && W) && "T form of instruction unimplemented");
     if ((!P || W) && n == t) {
         return UnpredictableInstruction();
     }
@@ -209,7 +212,7 @@ bool TranslatorVisitor::arm_LDRB_imm(Cond cond, bool P, bool U, bool W, Reg n, R
 // LDRB <Rt>, [<Rn>, #+/-<Rm>]{!}
 // LDRB <Rt>, [<Rn>], #+/-<Rm>
 bool TranslatorVisitor::arm_LDRB_reg(Cond cond, bool P, bool U, bool W, Reg n, Reg t, Imm<5> imm5, ShiftType shift, Reg m) {
-    ASSERT(!(!P && W) && "T form of instruction unimplemented");
+    assert(!(!P && W) && "T form of instruction unimplemented");
     if (t == Reg::PC || m == Reg::PC) {
         return UnpredictableInstruction();
     }
@@ -352,7 +355,7 @@ bool TranslatorVisitor::arm_LDRD_reg(Cond cond, bool P, bool U, bool W, Reg n, R
 
 // LDRH <Rt>, [PC, #-/+<imm>]
 bool TranslatorVisitor::arm_LDRH_lit(Cond cond, bool P, bool U, bool W, Reg t, Imm<4> imm8a, Imm<4> imm8b) {
-    ASSERT(!(!P && W) && "T form of instruction unimplemented");
+    assert(!(!P && W) && "T form of instruction unimplemented");
     if (P == W) {
         return UnpredictableInstruction();
     }
@@ -382,7 +385,7 @@ bool TranslatorVisitor::arm_LDRH_imm(Cond cond, bool P, bool U, bool W, Reg n, R
         return UnpredictableInstruction();
     }
 
-    ASSERT(!(!P && W) && "T form of instruction unimplemented");
+    assert(!(!P && W) && "T form of instruction unimplemented");
     if ((!P || W) && n == t) {
         return UnpredictableInstruction();
     }
@@ -407,7 +410,7 @@ bool TranslatorVisitor::arm_LDRH_imm(Cond cond, bool P, bool U, bool W, Reg n, R
 // LDRH <Rt>, [<Rn>, #+/-<Rm>]{!}
 // LDRH <Rt>, [<Rn>], #+/-<Rm>
 bool TranslatorVisitor::arm_LDRH_reg(Cond cond, bool P, bool U, bool W, Reg n, Reg t, Reg m) {
-    ASSERT(!(!P && W) && "T form of instruction unimplemented");
+    assert(!(!P && W) && "T form of instruction unimplemented");
     if (t == Reg::PC || m == Reg::PC) {
         return UnpredictableInstruction();
     }
@@ -456,7 +459,7 @@ bool TranslatorVisitor::arm_LDRSB_imm(Cond cond, bool P, bool U, bool W, Reg n, 
         return UnpredictableInstruction();
     }
 
-    ASSERT(!(!P && W) && "T form of instruction unimplemented");
+    assert(!(!P && W) && "T form of instruction unimplemented");
     if ((!P || W) && n == t) {
         return UnpredictableInstruction();
     }
@@ -481,7 +484,7 @@ bool TranslatorVisitor::arm_LDRSB_imm(Cond cond, bool P, bool U, bool W, Reg n, 
 // LDRSB <Rt>, [<Rn>, #+/-<Rm>]{!}
 // LDRSB <Rt>, [<Rn>], #+/-<Rm>
 bool TranslatorVisitor::arm_LDRSB_reg(Cond cond, bool P, bool U, bool W, Reg n, Reg t, Reg m) {
-    ASSERT(!(!P && W) && "T form of instruction unimplemented");
+    assert(!(!P && W) && "T form of instruction unimplemented");
     if (t == Reg::PC || m == Reg::PC) {
         return UnpredictableInstruction();
     }
@@ -529,7 +532,7 @@ bool TranslatorVisitor::arm_LDRSH_imm(Cond cond, bool P, bool U, bool W, Reg n, 
         return UnpredictableInstruction();
     }
 
-    ASSERT(!(!P && W) && "T form of instruction unimplemented");
+    assert(!(!P && W) && "T form of instruction unimplemented");
     if ((!P || W) && n == t) {
         return UnpredictableInstruction();
     }
@@ -554,7 +557,7 @@ bool TranslatorVisitor::arm_LDRSH_imm(Cond cond, bool P, bool U, bool W, Reg n, 
 // LDRSH <Rt>, [<Rn>, #+/-<Rm>]{!}
 // LDRSH <Rt>, [<Rn>], #+/-<Rm>
 bool TranslatorVisitor::arm_LDRSH_reg(Cond cond, bool P, bool U, bool W, Reg n, Reg t, Reg m) {
-    ASSERT(!(!P && W) && "T form of instruction unimplemented");
+    assert(!(!P && W) && "T form of instruction unimplemented");
     if (t == Reg::PC || m == Reg::PC) {
         return UnpredictableInstruction();
     }
@@ -870,11 +873,11 @@ bool TranslatorVisitor::arm_LDMIB(Cond cond, bool W, Reg n, RegList list) {
 }
 
 bool TranslatorVisitor::arm_LDM_usr() {
-    UNREACHABLE();
+    std::unreachable();
 }
 
 bool TranslatorVisitor::arm_LDM_eret() {
-    UNREACHABLE();
+    std::unreachable();
 }
 
 static bool STMHelper(A32::IREmitter& ir, bool W, Reg n, RegList list, IR::U32 start_address, IR::U32 writeback_address) {
@@ -955,7 +958,7 @@ bool TranslatorVisitor::arm_STMIB(Cond cond, bool W, Reg n, RegList list) {
 }
 
 bool TranslatorVisitor::arm_STM_usr() {
-    UNREACHABLE();
+    std::unreachable();
 }
 
 }  // namespace Dynarmic::A32

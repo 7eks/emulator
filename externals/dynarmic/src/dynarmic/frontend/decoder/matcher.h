@@ -11,8 +11,6 @@
 #include <functional>
 #include <tuple>
 
-#include "dynarmic/common/assert.h"
-
 namespace Dynarmic::Decoder {
 
 /// Generic instruction handling construct.

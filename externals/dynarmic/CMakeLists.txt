@@ -16,12 +16,10 @@ endif()
 option(DYNARMIC_ENABLE_CPU_FEATURE_DETECTION "Turning this off causes dynarmic to assume the host CPU doesn't support anything later than SSE3" ON)
 option(DYNARMIC_ENABLE_NO_EXECUTE_SUPPORT "Enables support for systems that require W^X" OFF)
 option(DYNARMIC_FATAL_ERRORS "Errors are fatal" OFF)
-option(DYNARMIC_IGNORE_ASSERTS "Ignore asserts" OFF)
 option(DYNARMIC_TESTS "Build tests" ${BUILD_TESTING})
 option(DYNARMIC_TESTS_USE_UNICORN "Enable fuzzing tests against unicorn" OFF)
 option(DYNARMIC_USE_LLVM "Support disassembly of jitted x86_64 code using LLVM" OFF)
 option(DYNARMIC_USE_PRECOMPILED_HEADERS "Use precompiled headers" ON)
-option(DYNARMIC_USE_BUNDLED_EXTERNALS "Use all bundled externals (useful when e.g. cross-compiling)" OFF)
 option(DYNARMIC_WARNINGS_AS_ERRORS "Warnings as errors" ${MASTER_PROJECT})
 if (NOT DEFINED DYNARMIC_FRONTENDS)
     set(DYNARMIC_FRONTENDS "A32;A64" CACHE STRING "Selects which frontends to enable")
@@ -34,7 +32,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Set hard requirements for C++
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -123,17 +121,6 @@ endif()
 # Arch detection
 include(DetectArchitecture)
 
-# Forced use of individual bundled libraries for non-REQUIRED library is possible with e.g. cmake -DCMAKE_DISABLE_FIND_PACKAGE_fmt=ON ...
-
-if (DYNARMIC_USE_BUNDLED_EXTERNALS)
-    set(CMAKE_DISABLE_FIND_PACKAGE_biscuit ON)
-    set(CMAKE_DISABLE_FIND_PACKAGE_Catch2 ON)
-    set(CMAKE_DISABLE_FIND_PACKAGE_fmt ON)
-    set(CMAKE_DISABLE_FIND_PACKAGE_oaknut ON)
-    set(CMAKE_DISABLE_FIND_PACKAGE_unordered_dense ON)
-    set(CMAKE_DISABLE_FIND_PACKAGE_xbyak ON)
-endif()
-
 find_package(Boost 1.57 REQUIRED)
 find_package(fmt 9 CONFIG)
 find_package(unordered_dense CONFIG)
@@ -161,9 +148,6 @@ if (DYNARMIC_TESTS)
         find_package(Unicorn REQUIRED)
     endif()
 endif()
-
-# Pull in externals CMakeLists for libs where available
-add_subdirectory(externals)
 
 # Dynarmic project files
 add_subdirectory(src/dynarmic)

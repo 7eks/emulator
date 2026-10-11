@@ -8,9 +8,9 @@
 
 #pragma once
 
+#include <cassert>
 #include <type_traits>
 
-#include "dynarmic/common/assert.h"
 #include "dynarmic/mcl/bit.hpp"
 #include "dynarmic/common/common_types.h"
 
@@ -28,7 +28,7 @@ public:
     static constexpr size_t bit_size = bit_size_;
 
     explicit Imm(u32 value) : value(value) {
-        DEBUG_ASSERT((mcl::bit::get_bits<0, bit_size - 1>(value) == value) && "More bits in value than expected");
+        assert((mcl::bit::get_bits<0, bit_size - 1>(value) == value) && "More bits in value than expected");
     }
 
     template<typename T = u32>

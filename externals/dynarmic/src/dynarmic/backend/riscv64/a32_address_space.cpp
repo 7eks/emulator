@@ -8,7 +8,8 @@
 
 #include "dynarmic/backend/riscv64/a32_address_space.h"
 
-#include "dynarmic/common/assert.h"
+#include <cassert>
+#include <utility>
 
 #include "dynarmic/backend/riscv64/abi.h"
 #include "dynarmic/backend/riscv64/emit_riscv64.h"
@@ -94,7 +95,7 @@ void A32AddressSpace::EmitPrelude() {
 
 void A32AddressSpace::SetCursorPtr(CodePtr ptr) {
     ptrdiff_t offset = ptr - GetMemPtr<CodePtr>();
-    ASSERT(offset >= 0);
+    assert(offset >= 0);
     as.RewindBuffer(offset);
 }
 
@@ -128,7 +129,7 @@ void A32AddressSpace::Link(EmittedBlockInfo& block_info) {
             break;
         }
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 }

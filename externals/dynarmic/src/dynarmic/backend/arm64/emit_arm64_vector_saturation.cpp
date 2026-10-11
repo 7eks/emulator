@@ -6,6 +6,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <utility>
+
 #include <oaknut/oaknut.hpp>
 
 #include "dynarmic/backend/arm64/a32_jitstate.h"
@@ -41,7 +43,7 @@ static void Emit(oaknut::CodeGenerator&, EmitContext& ctx, IR::Inst* inst, EmitF
     } else if constexpr (size == 64) {
         emit(Qresult->D2(), Qa->D2(), Qb->D2());
     } else {
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 

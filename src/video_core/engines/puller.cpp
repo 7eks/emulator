@@ -331,7 +331,7 @@ void Puller::CallMethod(const MethodCall& method_call) {
     LOG_TRACE(HW_GPU, "Processing method {:08X} on subchannel {}", method_call.method,
               method_call.subchannel);
 
-    ASSERT(method_call.subchannel < bound_engines.size());
+    assert(method_call.subchannel < bound_engines.size());
 
     if (ExecuteMethodOnEngine(method_call.method)) {
         CallEngineMethod(method_call);
@@ -345,7 +345,7 @@ void Puller::CallMultiMethod(u32 method, u32 subchannel, const u32* base_start, 
                              u32 methods_pending) {
     LOG_TRACE(HW_GPU, "Processing method {:08X} on subchannel {}", method, subchannel);
 
-    ASSERT(subchannel < bound_engines.size());
+    assert(subchannel < bound_engines.size());
 
     if (ExecuteMethodOnEngine(method)) {
         CallEngineMultiMethod(method, subchannel, base_start, amount, methods_pending);

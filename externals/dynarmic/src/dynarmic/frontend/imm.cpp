@@ -8,7 +8,8 @@
 
 #include "dynarmic/frontend/imm.h"
 
-#include "dynarmic/common/assert.h"
+#include <utility>
+
 #include "dynarmic/mcl/bit.hpp"
 #include "dynarmic/common/common_types.h"
 
@@ -64,7 +65,7 @@ u64 AdvSIMDExpandImm(bool op, Imm<4> cmode, Imm<8> imm8) {
             return result;
         }
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 }  // namespace Dynarmic

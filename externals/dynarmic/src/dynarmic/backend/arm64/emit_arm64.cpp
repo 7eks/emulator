@@ -8,6 +8,9 @@
 
 #include "dynarmic/backend/arm64/emit_arm64.h"
 
+#include <cassert>
+#include <utility>
+
 #include <oaknut/oaknut.hpp>
 
 #include "dynarmic/backend/arm64/abi.h"
@@ -54,7 +57,7 @@ void EmitIR<IR::Opcode::PushRSB>(oaknut::CodeGenerator& code, EmitContext& ctx, 
     }
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ASSERT(args[0].IsImmediate());
+    assert(args[0].IsImmediate());
     const IR::LocationDescriptor target{args[0].GetImmediateU64()};
 
     code.LDR(Wscratch2, SP, offsetof(StackLayout, rsb_ptr));
@@ -71,19 +74,19 @@ void EmitIR<IR::Opcode::PushRSB>(oaknut::CodeGenerator& code, EmitContext& ctx, 
 template<>
 void EmitIR<IR::Opcode::GetCarryFromOp>(oaknut::CodeGenerator&, EmitContext& ctx, IR::Inst* inst) {
     [[maybe_unused]] auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ASSERT(ctx.reg_alloc.WasValueDefined(inst));
+    assert(ctx.reg_alloc.WasValueDefined(inst));
 }
 
 template<>
 void EmitIR<IR::Opcode::GetOverflowFromOp>(oaknut::CodeGenerator&, EmitContext& ctx, IR::Inst* inst) {
     [[maybe_unused]] auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ASSERT(ctx.reg_alloc.WasValueDefined(inst));
+    assert(ctx.reg_alloc.WasValueDefined(inst));
 }
 
 template<>
 void EmitIR<IR::Opcode::GetGEFromOp>(oaknut::CodeGenerator&, EmitContext& ctx, IR::Inst* inst) {
     [[maybe_unused]] auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ASSERT(ctx.reg_alloc.WasValueDefined(inst));
+    assert(ctx.reg_alloc.WasValueDefined(inst));
 }
 
 template<>
@@ -112,7 +115,7 @@ void EmitIR<IR::Opcode::GetNZCVFromOp>(oaknut::CodeGenerator& code, EmitContext&
         break;
     }
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 
@@ -142,20 +145,20 @@ void EmitIR<IR::Opcode::GetNZFromOp>(oaknut::CodeGenerator& code, EmitContext& c
         break;
     }
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 
 template<>
 void EmitIR<IR::Opcode::GetUpperFromOp>(oaknut::CodeGenerator&, EmitContext& ctx, IR::Inst* inst) {
     [[maybe_unused]] auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ASSERT(ctx.reg_alloc.WasValueDefined(inst));
+    assert(ctx.reg_alloc.WasValueDefined(inst));
 }
 
 template<>
 void EmitIR<IR::Opcode::GetLowerFromOp>(oaknut::CodeGenerator&, EmitContext& ctx, IR::Inst* inst) {
     [[maybe_unused]] auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ASSERT(ctx.reg_alloc.WasValueDefined(inst));
+    assert(ctx.reg_alloc.WasValueDefined(inst));
 }
 
 template<>
@@ -206,9 +209,9 @@ EmittedBlockInfo EmitArm64(oaknut::CodeGenerator& code, IR::Block block, const E
     ebi.entry_point = code.xptr<CodePtr>();
 
     if (ctx.block.GetCondition() == IR::Cond::AL) {
-        ASSERT(!ctx.block.HasConditionFailedLocation());
+        assert(!ctx.block.HasConditionFailedLocation());
     } else {
-        ASSERT(ctx.block.HasConditionFailedLocation());
+        assert(ctx.block.HasConditionFailedLocation());
         oaknut::Label pass;
 
         pass = conf.emit_cond(code, ctx, ctx.block.GetCondition());
@@ -239,7 +242,7 @@ EmittedBlockInfo EmitArm64(oaknut::CodeGenerator& code, IR::Block block, const E
 #undef A32OPC
 #undef A64OPC
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
 
         reg_alloc.UpdateAllUses();
@@ -283,7 +286,7 @@ void EmitBlockLinkRelocation(oaknut::CodeGenerator& code, EmitContext& ctx, cons
         code.NOP();
         break;
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 

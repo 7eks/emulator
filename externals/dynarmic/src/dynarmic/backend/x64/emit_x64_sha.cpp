@@ -6,6 +6,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
+
 #include "dynarmic/backend/x64/block_of_code.h"
 #include "dynarmic/backend/x64/emit_x64.h"
 
@@ -18,7 +20,7 @@ void EmitX64::EmitSHA256Hash(EmitContext& ctx, IR::Inst* inst) {
 
     const bool part1 = args[3].GetImmediateU1();
 
-    ASSERT(code.HasHostFeature(HostFeature::SHA));
+    assert(code.HasHostFeature(HostFeature::SHA));
 
     //      3   2   1   0
     // x =  d   c   b   a
@@ -54,7 +56,7 @@ void EmitX64::EmitSHA256Hash(EmitContext& ctx, IR::Inst* inst) {
 void EmitX64::EmitSHA256MessageSchedule0(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    ASSERT(code.HasHostFeature(HostFeature::SHA));
+    assert(code.HasHostFeature(HostFeature::SHA));
 
     const Xbyak::Xmm x = ctx.reg_alloc.UseScratchXmm(code, args[0]);
     const Xbyak::Xmm y = ctx.reg_alloc.UseXmm(code, args[1]);
@@ -67,7 +69,7 @@ void EmitX64::EmitSHA256MessageSchedule0(EmitContext& ctx, IR::Inst* inst) {
 void EmitX64::EmitSHA256MessageSchedule1(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
-    ASSERT(code.HasHostFeature(HostFeature::SHA));
+    assert(code.HasHostFeature(HostFeature::SHA));
 
     const Xbyak::Xmm x = ctx.reg_alloc.UseScratchXmm(code, args[0]);
     const Xbyak::Xmm y = ctx.reg_alloc.UseXmm(code, args[1]);

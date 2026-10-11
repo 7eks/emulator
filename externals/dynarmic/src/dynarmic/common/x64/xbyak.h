@@ -20,10 +20,10 @@
 
 #else
 
+#include <cassert>
 #include <type_traits>
 #include <bitset>
 #include <initializer_list>
-#include "dynarmic/common/assert.h"
 
 // xbyak hates human beings
 #ifdef __GNUC__
@@ -49,18 +49,18 @@ namespace Common::X64 {
 
 constexpr size_t RegToIndex(const Xbyak::Reg& reg) {
     using Kind = Xbyak::Reg::Kind;
-    ASSERT((reg.getKind() & (Kind::REG | Kind::XMM)) != 0 && "RegSet only support GPRs and XMM registers.");
-    ASSERT(reg.getIdx() < 16 && "RegSet only supports XXM0-15.");
+    assert((reg.getKind() & (Kind::REG | Kind::XMM)) != 0 && "RegSet only support GPRs and XMM registers.");
+    assert(reg.getIdx() < 16 && "RegSet only supports XXM0-15.");
     return static_cast<size_t>(reg.getIdx()) + (reg.getKind() == Kind::REG ? 0 : 16);
 }
 
 constexpr Xbyak::Reg64 IndexToReg64(size_t reg_index) {
-    ASSERT(reg_index < 16);
+    assert(reg_index < 16);
     return Xbyak::Reg64(static_cast<int>(reg_index));
 }
 
 constexpr Xbyak::Xmm IndexToXmm(size_t reg_index) {
-    ASSERT(reg_index >= 16 && reg_index < 32);
+    assert(reg_index >= 16 && reg_index < 32);
     return Xbyak::Xmm(static_cast<int>(reg_index - 16));
 }
 

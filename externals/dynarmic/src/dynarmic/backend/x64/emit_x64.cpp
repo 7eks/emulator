@@ -8,9 +8,10 @@
 
 #include "dynarmic/backend/x64/emit_x64.h"
 
+#include <cassert>
 #include <iterator>
+#include <utility>
 
-#include "dynarmic/common/assert.h"
 #include <boost/variant/detail/apply_visitor_binary.hpp>
 #include "dynarmic/mcl/bit.hpp"
 #include "dynarmic/common/common_types.h"
@@ -57,7 +58,7 @@ std::optional<EmitX64::BlockDescriptor> EmitX64::GetBasicBlock(IR::LocationDescr
 }
 
 void EmitX64::EmitInvalid(EmitContext&, IR::Inst* inst) {
-    UNREACHABLE();
+    std::unreachable();
 }
 
 void EmitX64::EmitVoid(EmitContext&, IR::Inst*) {
@@ -107,7 +108,7 @@ void EmitX64::PushRSBHelper(Xbyak::Reg64 loc_desc_reg, Xbyak::Reg64 index_reg, I
     code.mov(qword[code.ABI_JIT_PTR + index_reg * 8 + code.GetJitStateInfo().offsetof_rsb_location_descriptors], loc_desc_reg);
     code.mov(qword[code.ABI_JIT_PTR + index_reg * 8 + code.GetJitStateInfo().offsetof_rsb_codeptrs], rcx);
     // Byte size hack
-    DEBUG_ASSERT(code.GetJitStateInfo().rsb_ptr_mask <= 0xFF);
+    assert(code.GetJitStateInfo().rsb_ptr_mask <= 0xFF);
     code.add(index_reg.cvt32(), 1); //flags trashed, 1 single byte, haswell doesn't care
     code.and_(index_reg.cvt32(), u32(code.GetJitStateInfo().rsb_ptr_mask)); //trashes flags
     // Results ready and sort by least needed: give OOO some break
@@ -148,7 +149,7 @@ void EmitX64::EmitVerboseDebuggingOutput(RegAlloc& reg_alloc) {
 
 void EmitX64::EmitPushRSB(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ASSERT(args[0].IsImmediate());
+    assert(args[0].IsImmediate());
     const u64 unique_hash_of_target = args[0].GetImmediateU64();
 
     ctx.reg_alloc.ScratchGpr(code, HostLoc::RCX);
@@ -197,7 +198,7 @@ void EmitX64::EmitGetNZFromOp(EmitContext& ctx, IR::Inst* inst) {
         case IR::Type::U64:
             return 64;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }();
 
@@ -228,7 +229,7 @@ void EmitX64::EmitGetNZCVFromOp(EmitContext& ctx, IR::Inst* inst) {
         case IR::Type::U64:
             return 64;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }();
 
@@ -288,7 +289,7 @@ void EmitX64::EmitNZCVFromPackedFlags(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitAddCycles(size_t cycles) {
-    ASSERT(cycles < (std::numeric_limits<s32>::max)());
+    assert(cycles < (std::numeric_limits<s32>::max)());
     code.sub(qword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, cycles_remaining)], static_cast<u32>(cycles));
 }
 
@@ -343,7 +344,7 @@ Xbyak::Label EmitX64::EmitCond(IR::Cond cond) {
         code.jle(pass);
         break;
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
     return pass;
 }

@@ -6,6 +6,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
+
 #include <biscuit/assembler.hpp>
 #include <fmt/ostream.h>
 
@@ -22,82 +24,82 @@ namespace Dynarmic::Backend::RV64 {
 
 template<>
 void EmitIR<IR::Opcode::VectorSignedSaturatedAdd8>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorSignedSaturatedAdd16>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorSignedSaturatedAdd32>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorSignedSaturatedAdd64>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorSignedSaturatedSub8>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorSignedSaturatedSub16>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorSignedSaturatedSub32>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorSignedSaturatedSub64>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorUnsignedSaturatedAdd8>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorUnsignedSaturatedAdd16>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorUnsignedSaturatedAdd32>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorUnsignedSaturatedAdd64>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorUnsignedSaturatedSub8>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorUnsignedSaturatedSub16>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorUnsignedSaturatedSub32>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorUnsignedSaturatedSub64>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 }  // namespace Dynarmic::Backend::RV64

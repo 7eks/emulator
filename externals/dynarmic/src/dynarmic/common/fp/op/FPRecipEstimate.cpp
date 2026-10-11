@@ -9,8 +9,8 @@
 #include "dynarmic/common/fp/op/FPRecipEstimate.h"
 
 #include <tuple>
+#include <utility>
 
-#include "dynarmic/common/assert.h"
 #include "dynarmic/common/common_types.h"
 
 #include "dynarmic/common/fp/fpcr.h"
@@ -55,7 +55,7 @@ FPT FPRecipEstimate(FPT op, FPCR fpcr, FPSR& fpsr) {
             case RoundingMode::TowardsZero:
                 return false;
             default:
-                UNREACHABLE();
+                std::unreachable();
             }
         }();
 
@@ -86,7 +86,7 @@ FPT FPRecipEstimate(FPT op, FPCR fpcr, FPSR& fpsr) {
             result_exponent++;
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 

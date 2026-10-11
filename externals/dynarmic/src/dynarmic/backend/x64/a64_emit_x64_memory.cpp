@@ -7,6 +7,7 @@
  */
 
 #include <array>
+#include <cassert>
 #include <initializer_list>
 #include <tuple>
 #include <utility>

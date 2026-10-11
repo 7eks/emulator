@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <utility>
+
 #include "dynarmic/common/fp/rounding_mode.h"
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
 
@@ -74,7 +76,7 @@ bool FPCompareAgainstZero(TranslatorVisitor& v, bool Q, bool sz, Vec Vn, Vec Vd,
             return v.ir.FPVectorGreater(esize, zero, operand);
         }
 
-        UNREACHABLE();
+        std::unreachable();
     }();
 
     v.V(datasize, Vd, result);

@@ -8,6 +8,9 @@
 
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
 
+#include <cassert>
+#include <utility>
+
 #include "dynarmic/mcl/bit.hpp"
 
 #include "dynarmic/ir/terminal.h"
@@ -19,7 +22,7 @@ bool TranslatorVisitor::UnpredictableInstruction() {
 }
 
 bool TranslatorVisitor::DecodeError() {
-    UNREACHABLE();
+    std::unreachable();
 }
 
 bool TranslatorVisitor::ReservedValue() {
@@ -72,7 +75,7 @@ IR::UAny TranslatorVisitor::I(size_t bitsize, u64 value) {
     case 64:
         return ir.Imm64(value);
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 IR::UAny TranslatorVisitor::X(size_t bitsize, Reg reg) {
@@ -86,7 +89,7 @@ IR::UAny TranslatorVisitor::X(size_t bitsize, Reg reg) {
     case 64:
         return ir.GetX(reg);
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 void TranslatorVisitor::X(size_t bitsize, Reg reg, IR::U32U64 value) {
@@ -98,7 +101,7 @@ void TranslatorVisitor::X(size_t bitsize, Reg reg, IR::U32U64 value) {
         ir.SetX(reg, value);
         return;
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 IR::U32U64 TranslatorVisitor::SP(size_t bitsize) {
@@ -108,7 +111,7 @@ IR::U32U64 TranslatorVisitor::SP(size_t bitsize) {
     case 64:
         return ir.GetSP();
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 void TranslatorVisitor::SP(size_t bitsize, IR::U32U64 value) {
@@ -120,7 +123,7 @@ void TranslatorVisitor::SP(size_t bitsize, IR::U32U64 value) {
         ir.SetSP(value);
         break;
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 
@@ -133,7 +136,7 @@ IR::U128 TranslatorVisitor::V(size_t bitsize, Vec vec) {
     case 128:
         return ir.GetQ(vec);
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 void TranslatorVisitor::V(size_t bitsize, Vec vec, IR::U128 value) {
@@ -149,7 +152,7 @@ void TranslatorVisitor::V(size_t bitsize, Vec vec, IR::U128 value) {
         ir.SetQ(vec, value);
         return;
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 IR::UAnyU128 TranslatorVisitor::V_scalar(size_t bitsize, Vec vec) {
@@ -170,8 +173,8 @@ void TranslatorVisitor::V_scalar(size_t bitsize, Vec vec, IR::UAnyU128 value) {
 }
 
 IR::U128 TranslatorVisitor::Vpart(size_t bitsize, Vec vec, size_t part) {
-    ASSERT(part == 0 || part == 1);
-    ASSERT(bitsize == 64);
+    assert(part == 0 || part == 1);
+    assert(bitsize == 64);
     if (part == 0) {
         return V(64, vec);
     }
@@ -179,33 +182,33 @@ IR::U128 TranslatorVisitor::Vpart(size_t bitsize, Vec vec, size_t part) {
 }
 
 void TranslatorVisitor::Vpart(size_t bitsize, Vec vec, size_t part, IR::U128 value) {
-    ASSERT(part == 0 || part == 1);
+    assert(part == 0 || part == 1);
     if (part == 0) {
-        ASSERT(bitsize == 64);
+        assert(bitsize == 64);
         V(128, vec, ir.VectorZeroExtend(bitsize, value));
     } else {
-        ASSERT(bitsize == 64);
+        assert(bitsize == 64);
         V(128, vec, ir.VectorInterleaveLower(64, V(128, vec), value));
     }
 }
 
 IR::UAny TranslatorVisitor::Vpart_scalar(size_t bitsize, Vec vec, size_t part) {
-    ASSERT(part == 0 || part == 1);
+    assert(part == 0 || part == 1);
     if (part == 0) {
-        ASSERT(bitsize == 8 || bitsize == 16 || bitsize == 32 || bitsize == 64);
+        assert(bitsize == 8 || bitsize == 16 || bitsize == 32 || bitsize == 64);
     } else {
-        ASSERT(bitsize == 64);
+        assert(bitsize == 64);
     }
     return ir.VectorGetElement(bitsize, V(128, vec), part);
 }
 
 void TranslatorVisitor::Vpart_scalar(size_t bitsize, Vec vec, size_t part, IR::UAny value) {
-    ASSERT(part == 0 || part == 1);
+    assert(part == 0 || part == 1);
     if (part == 0) {
-        ASSERT(bitsize == 8 || bitsize == 16 || bitsize == 32 || bitsize == 64);
+        assert(bitsize == 8 || bitsize == 16 || bitsize == 32 || bitsize == 64);
         V(128, vec, ir.ZeroExtendToQuad(value));
     } else {
-        ASSERT(bitsize == 64);
+        assert(bitsize == 64);
         V(128, vec, ir.VectorSetElement(64, V(128, vec), 1, value));
     }
 }
@@ -223,7 +226,7 @@ IR::UAnyU128 TranslatorVisitor::Mem(IR::U64 address, size_t bytesize, IR::AccTyp
     case 16:
         return ir.ReadMemory128(address, acc_type);
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 void TranslatorVisitor::Mem(IR::U64 address, size_t bytesize, IR::AccType acc_type, IR::UAnyU128 value) {
@@ -244,7 +247,7 @@ void TranslatorVisitor::Mem(IR::U64 address, size_t bytesize, IR::AccType acc_ty
         ir.WriteMemory128(address, value, acc_type);
         return;
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 IR::UAnyU128 TranslatorVisitor::ExclusiveMem(IR::U64 address, size_t bytesize, IR::AccType acc_type) {
@@ -260,7 +263,7 @@ IR::UAnyU128 TranslatorVisitor::ExclusiveMem(IR::U64 address, size_t bytesize, I
     case 16:
         return ir.ExclusiveReadMemory128(address, acc_type);
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 IR::U32 TranslatorVisitor::ExclusiveMem(IR::U64 address, size_t bytesize, IR::AccType acc_type, IR::UAnyU128 value) {
@@ -276,7 +279,7 @@ IR::U32 TranslatorVisitor::ExclusiveMem(IR::U64 address, size_t bytesize, IR::Ac
     case 16:
         return ir.ExclusiveWriteMemory128(address, value, acc_type);
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 IR::U32U64 TranslatorVisitor::SignExtend(IR::UAny value, size_t to_size) {
@@ -286,7 +289,7 @@ IR::U32U64 TranslatorVisitor::SignExtend(IR::UAny value, size_t to_size) {
     case 64:
         return ir.SignExtendToLong(value);
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 IR::U32U64 TranslatorVisitor::ZeroExtend(IR::UAny value, size_t to_size) {
@@ -296,7 +299,7 @@ IR::U32U64 TranslatorVisitor::ZeroExtend(IR::UAny value, size_t to_size) {
     case 64:
         return ir.ZeroExtendToLong(value);
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 IR::U32U64 TranslatorVisitor::ShiftReg(size_t bitsize, Reg reg, Imm<2> shift, IR::U8 amount) {
@@ -311,12 +314,12 @@ IR::U32U64 TranslatorVisitor::ShiftReg(size_t bitsize, Reg reg, Imm<2> shift, IR
     case 0b11:
         return ir.RotateRight(result, amount);
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 IR::U32U64 TranslatorVisitor::ExtendReg(size_t bitsize, Reg reg, Imm<3> option, u8 shift) {
-    ASSERT(shift <= 4);
-    ASSERT(bitsize == 32 || bitsize == 64);
+    assert(shift <= 4);
+    assert(bitsize == 32 || bitsize == 64);
     IR::UAny val = X(bitsize, reg);
     size_t len;
     IR::U32U64 extended;
@@ -374,7 +377,7 @@ IR::U32U64 TranslatorVisitor::ExtendReg(size_t bitsize, Reg reg, Imm<3> option, 
         break;
     }
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 
     if (len < bitsize) {

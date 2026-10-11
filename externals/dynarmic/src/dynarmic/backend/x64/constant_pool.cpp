@@ -6,9 +6,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
 #include <cstring>
-
-#include "dynarmic/common/assert.h"
 
 #include "dynarmic/backend/x64/block_of_code.h"
 #include "dynarmic/backend/x64/constant_pool.h"
@@ -28,7 +27,7 @@ Xbyak::Address ConstantPool::GetConstant(BlockOfCode& code, const Xbyak::Address
     const auto constant = ConstantT(lower, upper);
     auto it = constant_info.find(constant);
     if (it == constant_info.end()) {
-        ASSERT(insertion_point < pool.size());
+        assert(insertion_point < pool.size());
         ConstantT& target_constant = pool[insertion_point];
         target_constant = constant;
         it = constant_info.insert({constant, &target_constant}).first;

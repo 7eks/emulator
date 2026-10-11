@@ -509,8 +509,8 @@ void BlitImageHelper::BlitDepthStencil(const Framebuffer* dst_framebuffer,
     if (!device.IsExtShaderStencilExportSupported()) {
         return;
     }
-    ASSERT(filter == Tegra::Engines::Fermi2D::Filter::Point);
-    ASSERT(operation == Tegra::Engines::Fermi2D::Operation::SrcCopy);
+    assert(filter == Tegra::Engines::Fermi2D::Filter::Point);
+    assert(operation == Tegra::Engines::Fermi2D::Operation::SrcCopy);
     const BlitImagePipelineKey key{
         .renderpass = dst_framebuffer->RenderPass(),
         .operation = operation,
@@ -560,7 +560,7 @@ void BlitImageHelper::ConvertR16ToD16(const Framebuffer* dst_framebuffer,
 
 void BlitImageHelper::ConvertABGR8ToD24S8(const Framebuffer* dst_framebuffer,
                                           const ImageView& src_image_view) {
-    ASSERT(device.IsExtShaderStencilExportSupported());
+    assert(device.IsExtShaderStencilExportSupported());
     ConvertPipelineDepthTargetEx(convert_abgr8_to_d24s8_pipeline, dst_framebuffer->RenderPass(),
                                  convert_abgr8_to_d24s8_frag);
     Convert(*convert_abgr8_to_d24s8_pipeline, dst_framebuffer, src_image_view);
@@ -787,7 +787,7 @@ VkPipeline BlitImageHelper::FindOrEmplaceColorPipeline(const BlitImagePipelineKe
 }
 
 VkPipeline BlitImageHelper::FindOrEmplaceDepthStencilPipeline(const BlitImagePipelineKey& key) {
-    ASSERT(device.IsExtShaderStencilExportSupported() && blit_depth_stencil_frag);
+    assert(device.IsExtShaderStencilExportSupported() && blit_depth_stencil_frag);
     const auto it = std::ranges::find(blit_depth_stencil_keys, key);
     if (it != blit_depth_stencil_keys.end()) {
         return *blit_depth_stencil_pipelines[std::distance(blit_depth_stencil_keys.begin(), it)];

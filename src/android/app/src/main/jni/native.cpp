@@ -1432,7 +1432,7 @@ void Java_org_citron_citron_1emu_NativeLibrary_initializeEmptyUserDirectory(JNIE
 
     const auto user_id = EmulationSession::GetInstance().System().GetProfileManager().GetUser(
         static_cast<std::size_t>(0));
-    ASSERT(user_id);
+    assert(user_id);
 
     const auto user_save_data_path = FileSys::SaveDataFactory::GetFullPath(
         {}, vfs_nand_dir, FileSys::SaveDataSpaceId::User, FileSys::SaveDataType::Account, 1,
@@ -1832,7 +1832,7 @@ jstring Java_org_citron_citron_1emu_NativeLibrary_getSavePath(JNIEnv* env, jobje
     Service::Account::ProfileManager manager;
     // TODO: Pass in a selected user once we get the relevant UI working
     const auto user_id = manager.GetUser(static_cast<std::size_t>(0));
-    ASSERT(user_id);
+    assert(user_id);
 
     const auto nandDir = Common::FS::GetCitronPath(Common::FS::CitronPath::NANDDir);
     auto vfsNandDir = system.GetFilesystem()->OpenDirectory(Common::FS::PathToUTF8String(nandDir),
@@ -1850,7 +1850,7 @@ jstring Java_org_citron_citron_1emu_NativeLibrary_getDefaultProfileSaveDataRoot(
     Service::Account::ProfileManager manager;
     // TODO: Pass in a selected user once we get the relevant UI working
     const auto user_id = manager.GetUser(static_cast<std::size_t>(0));
-    ASSERT(user_id);
+    assert(user_id);
 
     const auto user_save_data_root =
         FileSys::SaveDataFactory::GetUserGameSaveDataRoot(user_id->AsU128(), jfuture);
