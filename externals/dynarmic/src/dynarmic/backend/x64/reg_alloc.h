@@ -140,6 +140,8 @@ class RegAlloc final {
 public:
     using ArgumentInfo = std::array<Argument, IR::max_arg_count>;
     RegAlloc() noexcept = default;
+    /// The block being emitted: Values refer to its instructions by index.
+    IR::Block* block = nullptr;
     RegAlloc(std::bitset<32> gpr_order, std::bitset<32> xmm_order) noexcept;
 
     ArgumentInfo GetArgumentInfo(const IR::Inst* inst) noexcept;

@@ -119,12 +119,12 @@ EmittedBlockInfo EmitRV64(biscuit::Assembler& as, IR::Block block, const EmitCon
 
     EmittedBlockInfo ebi;
 
-    RegAlloc reg_alloc{as, GPR_ORDER, FPR_ORDER};
+    RegAlloc reg_alloc{as, GPR_ORDER, FPR_ORDER, block};
     EmitContext ctx{block, reg_alloc, emit_conf, ebi};
 
     ebi.entry_point = reinterpret_cast<CodePtr>(as.GetCursorPointer());
 
-    for (auto iter = block.instructions.begin(); iter != block.instructions.end(); ++iter) {
+    for (auto iter = block.begin(); iter != block.end(); ++iter) {
         IR::Inst* inst = &*iter;
 
         switch (inst->GetOpcode()) {

@@ -5281,10 +5281,10 @@ void EmitX64::EmitVectorTable(EmitContext&, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorTableLookup64(EmitContext& ctx, IR::Inst* inst) {
-    assert(inst->GetArg(1).GetInst()->GetOpcode() == IR::Opcode::VectorTable);
+    assert(inst->GetArg(1).GetInst(ctx.block)->GetOpcode() == IR::Opcode::VectorTable);
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    auto table = ctx.reg_alloc.GetArgumentInfo(inst->GetArg(1).GetInst());
+    auto table = ctx.reg_alloc.GetArgumentInfo(inst->GetArg(1).GetInst(ctx.block));
 
     const size_t table_size = std::count_if(table.begin(), table.end(), [](const auto& elem) { return !elem.IsVoid(); });
     const bool is_defaults_zero = inst->GetArg(0).IsZero();
@@ -5530,13 +5530,13 @@ void EmitX64::EmitVectorTableLookup64(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitVectorTableLookup128(EmitContext& ctx, IR::Inst* inst) {
-    assert(inst->GetArg(1).GetInst()->GetOpcode() == IR::Opcode::VectorTable);
+    assert(inst->GetArg(1).GetInst(ctx.block)->GetOpcode() == IR::Opcode::VectorTable);
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    auto table = ctx.reg_alloc.GetArgumentInfo(inst->GetArg(1).GetInst());
+    auto table = ctx.reg_alloc.GetArgumentInfo(inst->GetArg(1).GetInst(ctx.block));
 
     const size_t table_size = std::count_if(table.begin(), table.end(), [](const auto& elem) { return !elem.IsVoid(); });
-    const bool is_defaults_zero = !inst->GetArg(0).IsImmediate() && inst->GetArg(0).GetInst()->GetOpcode() == IR::Opcode::ZeroVector;
+    const bool is_defaults_zero = !inst->GetArg(0).IsImmediate() && inst->GetArg(0).GetInst(ctx.block)->GetOpcode() == IR::Opcode::ZeroVector;
 
     if (code.HasHostFeature(HostFeature::AVX512_Ortho | HostFeature::AVX512BW | HostFeature::AVX512VBMI) && table_size == 4) {
         auto const indicies = ctx.reg_alloc.UseScratchXmm(code, args[2]);

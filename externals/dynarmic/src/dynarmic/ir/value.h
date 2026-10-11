@@ -28,18 +28,22 @@ enum class Vec;
 
 namespace Dynarmic::IR {
 
+class Block;
 class Inst;
 enum class AccType;
 enum class Cond;
 
 /// @brief A representation of a value in the IR.
-/// A value may either be an immediate or the result of a microinstruction.
+/// A value may either be an immediate or the result of a microinstruction. An instruction is referred to by its
+/// index in its block's instruction storage, never by address, so the storage may grow and the block may move
+/// without invalidating any Value. The type of an instruction result is recorded when the Value is made, so
+/// GetType() and the immediate accessors never need the block. Values read from an instruction's arguments
+/// (Inst::GetArg) have Identity instructions looked through already.
 class Value {
 public:
     using CoprocessorInfo = std::array<u8, 8>;
 
     inline Value() noexcept : type(Type::Void) {}
-    explicit Value(Inst* value);
     explicit Value(A32::Reg value);
     explicit Value(A32::ExtReg value);
     explicit Value(A64::Reg value);
@@ -53,15 +57,37 @@ public:
     explicit Value(Cond value);
     explicit Value(AccType value);
 
+    /// A reference to the instruction at `index` of its block; `inst_type` is the type of its result.
+    static Value FromInst(u32 index, Type inst_type) noexcept;
     static Value EmptyNZCVImmediateMarker();
 
-    bool IsIdentity() const noexcept;
-    bool IsEmpty() const noexcept;
-    bool IsImmediate() const noexcept;
-    Type GetType() const noexcept;
+    inline bool IsEmpty() const noexcept {
+        return type == Type::Void;
+    }
+    /// True for an immediate (anything that is not an instruction result).
+    inline bool IsImmediate() const noexcept {
+        return !is_inst;
+    }
+    /// True for a reference to an instruction result.
+    inline bool IsInst() const noexcept {
+        return is_inst;
+    }
+    inline Type GetType() const noexcept {
+        return type;
+    }
 
-    Inst* GetInst() const;
-    Inst* GetInstRecursive() const;
+    /// Index in the block's instruction storage of the referenced instruction.
+    inline u32 GetInstIndex() const noexcept {
+        assert(is_inst);
+        return inner.inst_index;
+    }
+    /// The referenced instruction.
+    Inst* GetInst(Block& block) const noexcept;
+    const Inst* GetInst(const Block& block) const noexcept;
+    /// The referenced instruction, looking through Identity instructions.
+    Inst* GetInstRecursive(Block& block) const noexcept;
+    const Inst* GetInstRecursive(const Block& block) const noexcept;
+
     A32::Reg GetA32RegRef() const;
     A32::ExtReg GetA32ExtRegRef() const;
     A64::Reg GetA64RegRef() const;
@@ -121,8 +147,9 @@ public:
 
 private:
     Type type;
+    bool is_inst = false;
     union {
-        Inst* inst;  // type == Type::Opaque
+        u32 inst_index;  // is_inst
         A32::Reg imm_a32regref;
         A32::ExtReg imm_a32extregref;
         A64::Reg imm_a64regref;
@@ -154,9 +181,6 @@ public:
             : Value(value) {
         assert((value.GetType() & type_) != Type::Void);
     }
-
-    explicit TypedValue(Inst* inst)
-            : TypedValue(Value(inst)) {}
 };
 
 using U1 = TypedValue<Type::U1>;

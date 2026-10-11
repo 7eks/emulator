@@ -11,27 +11,55 @@
 #include <algorithm>
 #include <cassert>
 
+#include "dynarmic/ir/basic_block.h"
 #include "dynarmic/ir/opcodes.h"
 #include "dynarmic/ir/type.h"
 
 namespace Dynarmic::IR {
 
 bool Inst::AreAllArgsImmediates() const {
-    return std::all_of(args.begin(), args.begin() + NumArgs(), [](const auto& value) {
-        return value.IsImmediate();
-    });
+    // Through Identity instructions, as GetArg reads them: GetSetElimination leaves Identity(#imm)
+    // behind and ConstantPropagation runs before IdentityRemovalPass.
+    const size_t num_args = NumArgs();
+    for (size_t index = 0; index < num_args; ++index) {
+        if (!GetArg(index).IsImmediate()) {
+            return false;
+        }
+    }
+    return true;
 }
 
 Inst* Inst::GetAssociatedPseudoOperation(Opcode opcode) {
-    Inst* pseudoop = next_pseudoop;
-    while (pseudoop) {
-        if (pseudoop->GetOpcode() == opcode) {
-            assert(pseudoop->GetArg(0).GetInst() == this);
-            return pseudoop;
+    for (u32 index = next_pseudoop; index != npos; index = owner->At(index).next_pseudoop) {
+        Inst& pseudoop = owner->At(index);
+        if (pseudoop.GetOpcode() == opcode) {
+            assert(pseudoop.args[0].GetInstIndex() == Index());
+            return &pseudoop;
         }
-        pseudoop = pseudoop->next_pseudoop;
     }
     return nullptr;
+}
+
+u32 Inst::Index() const noexcept {
+    return owner->IndexOf(*this);
+}
+
+Value Inst::AsValue() const noexcept {
+    return Value::FromInst(Index(), GetType());
+}
+
+Value Inst::GetArg(size_t index) const noexcept {
+    assert(index < GetNumArgsOf(op));
+    assert(!args[index].IsEmpty() || GetArgTypeOf(op, index) == IR::Type::Opaque);
+    Value value = args[index];
+    while (value.IsInst()) {
+        const Inst& target = owner->At(value.GetInstIndex());
+        if (target.op != Opcode::Identity) {
+            break;
+        }
+        value = target.args[0];
+    }
+    return value;
 }
 
 Type Inst::GetType() const {
@@ -76,33 +104,37 @@ void Inst::ReplaceUsesWith(Value replacement) {
 }
 
 void Inst::Use(const Value& value) {
-    value.GetInst()->use_count++;
+    Inst& target = owner->At(value.GetInstIndex());
+    target.use_count++;
 
     if (IsAPseudoOperation(op)) {
         if (op == Opcode::GetNZCVFromOp) {
-            assert(MayGetNZCVFromOp(value.GetInst()->GetOpcode()) && "This value doesn't support the GetNZCVFromOp pseduo-op");
+            assert(MayGetNZCVFromOp(target.GetOpcode()) && "This value doesn't support the GetNZCVFromOp pseduo-op");
         }
 
-        Inst* insert_point = value.GetInst();
-        while (insert_point->next_pseudoop) {
-            insert_point = insert_point->next_pseudoop;
-            assert(insert_point->GetArg(0).GetInst() == value.GetInst());
+        u32 insert_point = value.GetInstIndex();
+        while (owner->At(insert_point).next_pseudoop != npos) {
+            insert_point = owner->At(insert_point).next_pseudoop;
+            // The chain is keyed on the stored argument, which may since have become an Identity.
+            assert(owner->At(insert_point).args[0].GetInstIndex() == value.GetInstIndex());
         }
-        insert_point->next_pseudoop = this;
+        owner->At(insert_point).next_pseudoop = Index();
     }
 }
 
 void Inst::UndoUse(const Value& value) {
-    value.GetInst()->use_count--;
+    Inst& target = owner->At(value.GetInstIndex());
+    target.use_count--;
 
     if (IsAPseudoOperation(op)) {
-        Inst* insert_point = value.GetInst();
-        while (insert_point->next_pseudoop != this) {
-            insert_point = insert_point->next_pseudoop;
-            assert(insert_point->GetArg(0).GetInst() == value.GetInst());
+        const u32 self = Index();
+        u32 insert_point = value.GetInstIndex();
+        while (owner->At(insert_point).next_pseudoop != self) {
+            insert_point = owner->At(insert_point).next_pseudoop;
+            assert(owner->At(insert_point).args[0].GetInstIndex() == value.GetInstIndex());
         }
-        insert_point->next_pseudoop = next_pseudoop;
-        next_pseudoop = nullptr;
+        owner->At(insert_point).next_pseudoop = next_pseudoop;
+        next_pseudoop = npos;
     }
 }
 

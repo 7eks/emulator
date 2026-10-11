@@ -160,12 +160,16 @@ class RegAlloc final {
 public:
     using ArgumentInfo = std::array<Argument, IR::max_arg_count>;
 
-    explicit RegAlloc(oaknut::CodeGenerator& code, FpsrManager& fpsr_manager, std::vector<int> gpr_order, std::vector<int> fpr_order) noexcept
-        : code{code}
+    explicit RegAlloc(oaknut::CodeGenerator& code, FpsrManager& fpsr_manager, std::vector<int> gpr_order, std::vector<int> fpr_order, IR::Block& block) noexcept
+        : block{block}
+        , code{code}
         , fpsr_manager{fpsr_manager}
         , gpr_order{gpr_order}
         , fpr_order{fpr_order}
     {}
+
+    /// The block being emitted: Values refer to its instructions by index.
+    IR::Block& block;
 
     ArgumentInfo GetArgumentInfo(IR::Inst* inst);
     bool WasValueDefined(IR::Inst* inst) const;
@@ -343,14 +347,14 @@ template<typename T>
 RAReg<T>::RAReg(RegAlloc& reg_alloc, RWType rw, const IR::Value& read_value, const IR::Inst* write_value)
         : reg_alloc{reg_alloc}, rw{rw}, read_value{read_value}, write_value{write_value} {
     if (rw != RWType::Write && !read_value.IsImmediate()) {
-        reg_alloc.ValueInfo(read_value.GetInst()).locked++;
+        reg_alloc.ValueInfo(read_value.GetInst(reg_alloc.block)).locked++;
     }
 }
 
 template<typename T>
 RAReg<T>::~RAReg() {
     if (rw != RWType::Write && !read_value.IsImmediate()) {
-        reg_alloc.ValueInfo(read_value.GetInst()).locked--;
+        reg_alloc.ValueInfo(read_value.GetInst(reg_alloc.block)).locked--;
     }
     if (reg) {
         reg_alloc.ValueInfo(HostLoc{kind, reg->index()}).realized = false;

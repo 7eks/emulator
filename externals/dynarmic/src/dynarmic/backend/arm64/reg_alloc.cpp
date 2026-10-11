@@ -85,7 +85,7 @@ IR::AccType Argument::GetImmediateAccType() const {
 }
 
 HostLoc::Kind Argument::CurrentLocationKind(RegAlloc& reg_alloc) const {
-    return reg_alloc.ValueLocation(value.GetInst())->kind;
+    return reg_alloc.ValueLocation(value.GetInst(reg_alloc.block))->kind;
 }
 
 bool HostLocInfo::Contains(const IR::Inst* value) const {
@@ -136,8 +136,8 @@ RegAlloc::ArgumentInfo RegAlloc::GetArgumentInfo(IR::Inst* inst) {
         const IR::Value arg = inst->GetArg(i);
         ret[i].value = arg;
         if (!arg.IsImmediate() && !IsValuelessType(arg.GetType())) {
-            assert(ValueLocation(arg.GetInst()) && "argument must already been defined");
-            ValueInfo(arg.GetInst()).uses_this_inst++;
+            assert(ValueLocation(arg.GetInst(block)) && "argument must already been defined");
+            ValueInfo(arg.GetInst(block)).uses_this_inst++;
         }
     }
     return ret;
@@ -200,7 +200,7 @@ void RegAlloc::DefineAsExisting(IR::Inst* inst, Argument& arg) {
         return;
     }
 
-    auto& info = ValueInfo(arg.value.GetInst());
+    auto& info = ValueInfo(arg.value.GetInst(block));
     info.values.push_back(inst);
     info.expected_uses += inst->UseCount();
 }
@@ -309,7 +309,7 @@ int RegAlloc::RealizeReadImpl(const IR::Value& value) {
         return GenerateImmediate<required_kind>(value);
     }
 
-    const auto current_location = ValueLocation(value.GetInst());
+    const auto current_location = ValueLocation(value.GetInst(block));
     assert(current_location);
 
     if (current_location->kind == required_kind) {
@@ -461,7 +461,7 @@ void RegAlloc::SpillFpr(int index) {
 
 void RegAlloc::ReadWriteFlags(Argument& read, IR::Inst* write) {
     defined_insts.insert(write);
-    const auto current_location = ValueLocation(read.value.GetInst());
+    const auto current_location = ValueLocation(read.value.GetInst(block));
     assert(current_location);
 
     if (current_location->kind == HostLoc::Kind::Flags) {
@@ -512,7 +512,7 @@ void RegAlloc::LoadCopyInto(const IR::Value& value, oaknut::XReg reg) {
         return;
     }
 
-    const auto current_location = ValueLocation(value.GetInst());
+    const auto current_location = ValueLocation(value.GetInst(block));
     assert(current_location);
     switch (current_location->kind) {
     case HostLoc::Kind::Gpr:
@@ -538,7 +538,7 @@ void RegAlloc::LoadCopyInto(const IR::Value& value, oaknut::QReg reg) {
         return;
     }
 
-    const auto current_location = ValueLocation(value.GetInst());
+    const auto current_location = ValueLocation(value.GetInst(block));
     assert(current_location);
     switch (current_location->kind) {
     case HostLoc::Kind::Gpr:

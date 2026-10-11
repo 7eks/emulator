@@ -8,7 +8,6 @@
 
 #include "dynarmic/ir/basic_block.h"
 
-#include <algorithm>
 #include <cassert>
 #include <initializer_list>
 #include <map>
@@ -27,41 +26,105 @@ Block::Block(LocationDescriptor location) noexcept
     , end_location{location}
 {}
 
-/// Prepends a new instruction to this basic block before the insertion point,
-/// handling any allocations necessary to do so.
-/// @param insertion_point Where to insert the new instruction.
-/// @param op              Opcode representing the instruction to add.
-/// @param args            A sequence of Value instances used as arguments for the instruction.
+Block::Block(Block&& other) noexcept
+    : cond_failed{std::move(other.cond_failed)}
+    , location{other.location}
+    , end_location{other.end_location}
+    , cond{other.cond}
+    , terminal{std::move(other.terminal)}
+    , cond_failed_cycle_count{other.cond_failed_cycle_count}
+    , cycle_count{other.cycle_count}
+    , storage_{std::move(other.storage_)}
+    , head_{other.head_}
+    , tail_{other.tail_}
+    , count_{other.count_} {
+    for (Inst& inst : storage_) {
+        inst.owner = this;
+    }
+    other.head_ = other.tail_ = npos;
+    other.count_ = 0;
+}
+
+Block& Block::operator=(Block&& other) noexcept {
+    cond_failed = std::move(other.cond_failed);
+    location = other.location;
+    end_location = other.end_location;
+    cond = other.cond;
+    terminal = std::move(other.terminal);
+    cond_failed_cycle_count = other.cond_failed_cycle_count;
+    cycle_count = other.cycle_count;
+    storage_ = std::move(other.storage_);
+    head_ = other.head_;
+    tail_ = other.tail_;
+    count_ = other.count_;
+    for (Inst& inst : storage_) {
+        inst.owner = this;
+    }
+    other.head_ = other.tail_ = npos;
+    other.count_ = 0;
+    return *this;
+}
+
+/// Inserts a new instruction before `insertion_point`. The instruction takes the next slot of the
+/// storage (growing it if needed: iterators and Values stay valid, references do not) and is linked
+/// into the list in front of the insertion point, or at the end for end().
 /// @returns Iterator to the newly created instruction.
 Block::iterator Block::PrependNewInst(iterator insertion_point, Opcode opcode, std::initializer_list<Value> args) noexcept {
-    // First try using the "inline" buffer, otherwise fallback to a slower slab-like allocation scheme
-    // purpouse is to avoid many calls to new/delete which invoke malloc which invokes mmap
-    // just pool it!!! - reason why there is an inline buffer is because many small blocks are created
-    // with few instructions due to subpar optimisations on other passes... plus branch-heavy code will
-    // hugely benefit from the coherency of faster allocations...
-    IR::Inst* inst;
-    if (inlined_inst.size() < inlined_inst.max_size()) {
-        inlined_inst.emplace_back(opcode);
-        inst = &inlined_inst[inlined_inst.size() - 1];
+    const u32 index = static_cast<u32>(storage_.size());
+    storage_.emplace_back(opcode);
+    Inst& inst = storage_.back();
+    inst.owner = this;
+
+    const u32 next = insertion_point.Index();
+    const u32 prev = next == npos ? tail_ : storage_[next].prev;
+    inst.next = next;
+    inst.prev = prev;
+    if (prev != npos) {
+        storage_[prev].next = index;
     } else {
-        if (pooled_inst.empty() || pooled_inst.back().size() == pooled_inst.back().max_size())
-            pooled_inst.emplace_back();
-        pooled_inst.back().emplace_back(opcode);
-        inst = &pooled_inst.back()[pooled_inst.back().size() - 1];
+        head_ = index;
     }
-    assert(args.size() == inst->NumArgs());
-    std::for_each(args.begin(), args.end(), [&inst, index = size_t(0)](const auto& arg) mutable {
-        inst->SetArg(index, arg);
-        index++;
-    });
-    return instructions.insert_before(insertion_point, inst);
+    if (next != npos) {
+        storage_[next].prev = index;
+    } else {
+        tail_ = index;
+    }
+    count_++;
+
+    assert(args.size() == inst.NumArgs());
+    size_t arg_index = 0;
+    for (const Value& arg : args) {
+        inst.SetArg(arg_index++, arg);
+    }
+    return {this, index};
+}
+
+Block::iterator Block::erase(iterator pos) noexcept {
+    assert(pos.Index() != npos);
+    Inst& inst = storage_[pos.Index()];
+    const u32 next = inst.next;
+    const u32 prev = inst.prev;
+    // Linked in this block: erasing an unlinked slot twice would empty the list.
+    assert(prev != npos || head_ == pos.Index());
+    if (prev != npos) {
+        storage_[prev].next = next;
+    } else {
+        head_ = next;
+    }
+    if (next != npos) {
+        storage_[next].prev = prev;
+    } else {
+        tail_ = prev;
+    }
+    inst.next = inst.prev = npos;
+    count_--;
+    return {this, next};
 }
 
 void Block::Reset(LocationDescriptor location_) noexcept {
-    mcl::intrusive_list<IR::Inst> tmp = {};
-    instructions.swap(tmp);
-    inlined_inst.clear();
-    pooled_inst.clear();
+    storage_.clear();
+    head_ = tail_ = npos;
+    count_ = 0;
     cond_failed.reset();
     location = location_;
     end_location = location_;
@@ -69,7 +132,6 @@ void Block::Reset(LocationDescriptor location_) noexcept {
     terminal = std::monostate{};
     cond_failed_cycle_count = 0;
     cycle_count = 0;
-    assert(instructions.size() == 0);
 }
 
 static std::string TerminalToString(const Term::Terminal& terminal_variant) noexcept {
@@ -114,13 +176,13 @@ std::string DumpBlock(const IR::Block& block) noexcept {
         ret += fmt::format(", cond_fail={}", block.ConditionFailedLocation());
     ret += '\n';
 
-    const auto arg_to_string = [](const IR::Value& arg) -> std::string {
+    const auto arg_to_string = [&block](const IR::Value& arg) -> std::string {
         if (arg.IsEmpty()) {
             return "<null>";
         } else if (!arg.IsImmediate()) {
-            if (auto const name = arg.GetInst()->GetName())
+            if (auto const name = arg.GetInst(block)->GetName())
                 return fmt::format("%{}", name);
-            return fmt::format("%<unnamed inst {:016x}>", u64(arg.GetInst()));
+            return fmt::format("%<unnamed inst {}>", arg.GetInstIndex());
         }
         switch (arg.GetType()) {
         case Type::U1: return fmt::format("#{}", arg.GetU1() ? '1' : '0');
@@ -142,10 +204,10 @@ std::string DumpBlock(const IR::Block& block) noexcept {
         }
     };
 
-    for (const auto& inst : block.instructions) {
+    for (const auto& inst : block) {
         const Opcode op = inst.GetOpcode();
 
-        ret += fmt::format("[{:016x}] ", reinterpret_cast<u64>(&inst));
+        ret += fmt::format("[{:5}] ", block.IndexOf(inst));
         if (GetTypeOf(op) != Type::Void) {
             if (inst.GetName()) {
                 ret += fmt::format("%{:<5} = ", inst.GetName());

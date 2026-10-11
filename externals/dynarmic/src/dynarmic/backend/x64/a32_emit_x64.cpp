@@ -112,6 +112,7 @@ A32EmitX64::BlockDescriptor A32EmitX64::Emit(IR::Block& block) {
         return gprs;
     }(), any_xmm);
 
+    reg_alloc.block = &block;
     A32EmitContext ctx{conf, reg_alloc, block, shared_labels};
 
     // Start emitting.
@@ -142,7 +143,7 @@ A32EmitX64::BlockDescriptor A32EmitX64::Emit(IR::Block& block) {
 #undef A64OPC
     };
 
-    for (auto& inst : block.instructions) {
+    for (auto& inst : block) {
         auto const opcode = inst.GetOpcode();
         // Call the relevant Emit* member function.
         switch (opcode) {
@@ -747,7 +748,7 @@ void A32EmitX64::EmitA32BXWritePC(A32EmitContext& ctx, IR::Inst* inst) {
 }
 
 void A32EmitX64::EmitA32UpdateUpperLocationDescriptor(A32EmitContext& ctx, IR::Inst*) {
-    for (auto& inst : ctx.block.instructions)
+    for (auto& inst : ctx.block)
         if (inst.GetOpcode() == IR::Opcode::A32BXWritePC)
             return;
     EmitSetUpperLocationDescriptor(ctx.EndLocation(), ctx.Location());

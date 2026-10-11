@@ -168,21 +168,21 @@ IR::AccType Argument::GetImmediateAccType() const noexcept {
 bool Argument::IsInGpr(RegAlloc& reg_alloc) const noexcept {
     if (IsImmediate())
         return false;
-    return HostLocIsGPR(*reg_alloc.ValueLocation(value.GetInst()));
+    return HostLocIsGPR(*reg_alloc.ValueLocation(value.GetInst(*reg_alloc.block)));
 }
 
 /// Is this value currently in a XMM?
 bool Argument::IsInXmm(RegAlloc& reg_alloc) const noexcept {
     if (IsImmediate())
         return false;
-    return HostLocIsXMM(*reg_alloc.ValueLocation(value.GetInst()));
+    return HostLocIsXMM(*reg_alloc.ValueLocation(value.GetInst(*reg_alloc.block)));
 }
 
 /// Is this value currently in memory?
 bool Argument::IsInMemory(RegAlloc& reg_alloc) const noexcept {
     if (IsImmediate())
         return false;
-    return HostLocIsSpill(*reg_alloc.ValueLocation(value.GetInst()));
+    return HostLocIsSpill(*reg_alloc.ValueLocation(value.GetInst(*reg_alloc.block)));
 }
 
 RegAlloc::RegAlloc(std::bitset<32> gpr_order, std::bitset<32> xmm_order) noexcept
@@ -200,7 +200,7 @@ RegAlloc::ArgumentInfo RegAlloc::GetArgumentInfo(const IR::Inst* inst) noexcept 
         const auto arg = inst->GetArg(i);
         ret[i].value = arg;
         if (!arg.IsImmediate() && !IsValuelessType(arg.GetType())) {
-            auto const loc = ValueLocation(arg.GetInst());
+            auto const loc = ValueLocation(arg.GetInst(*block));
             assert(loc && "argument must already been defined");
             LocInfo(*loc).AddArgReference();
         }
@@ -213,7 +213,7 @@ void RegAlloc::RegisterPseudoOperation(const IR::Inst* inst) noexcept {
     for (size_t i = 0; i < inst->NumArgs(); i++) {
         auto const arg = inst->GetArg(i);
         if (!arg.IsImmediate() && !IsValuelessType(arg.GetType())) {
-            if (auto const loc = ValueLocation(arg.GetInst())) {
+            if (auto const loc = ValueLocation(arg.GetInst(*block))) {
                 // May not necessarily have a value (e.g. CMP variant of Sub32).
                 LocInfo(*loc).AddArgReference();
             }
@@ -262,7 +262,7 @@ HostLoc RegAlloc::UseImpl(BlockOfCode& code, IR::Value use_value, std::bitset<32
         return LoadImmediate(code, use_value, ScratchImpl(code, desired_locations));
     }
 
-    auto const* use_inst = use_value.GetInst();
+    auto const* use_inst = use_value.GetInst(*block);
     HostLoc const current_location = *ValueLocation(use_inst);
 
     if (HostLocIsRegister(current_location) && desired_locations.test(size_t(current_location))) {
@@ -293,7 +293,7 @@ HostLoc RegAlloc::UseScratchImpl(BlockOfCode& code, IR::Value use_value, std::bi
         return LoadImmediate(code, use_value, ScratchImpl(code, desired_locations));
     }
 
-    const auto* use_inst = use_value.GetInst();
+    const auto* use_inst = use_value.GetInst(*block);
     const HostLoc current_location = *ValueLocation(use_inst);
     const size_t bit_width = GetBitWidth(use_inst->GetType());
     if (HostLocIsRegister(current_location) && desired_locations.test(size_t(current_location)) && !LocInfo(current_location).IsLocked()) {
@@ -478,8 +478,8 @@ void RegAlloc::DefineValueImpl(BlockOfCode& code, IR::Inst* def_inst, const IR::
         DefineValueImpl(code, def_inst, location);
         LoadImmediate(code, use_inst, location);
     } else {
-        assert(ValueLocation(use_inst.GetInst()) && "use_inst must already be defined");
-        const HostLoc location = *ValueLocation(use_inst.GetInst());
+        assert(ValueLocation(use_inst.GetInst(*block)) && "use_inst must already be defined");
+        const HostLoc location = *ValueLocation(use_inst.GetInst(*block));
         DefineValueImpl(code, def_inst, location);
     }
 }

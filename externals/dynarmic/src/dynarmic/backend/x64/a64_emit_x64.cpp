@@ -89,6 +89,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) noexcept {
         return gprs;
     }(), any_xmm};
 
+    reg_alloc.block = &block;
     A64EmitContext ctx{conf, reg_alloc, block, shared_labels};
 
     // Start emitting.
@@ -119,7 +120,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) noexcept {
 #undef A64OPC
     };
 
-    for (auto& inst : block.instructions) {
+    for (auto& inst : block) {
         auto const opcode = inst.GetOpcode();
         // Call the relevant Emit* member function.
         switch (opcode) {

@@ -123,8 +123,11 @@ class RegAlloc {
 public:
     using ArgumentInfo = std::array<Argument, IR::max_arg_count>;
 
-    explicit RegAlloc(lagoon_assembler_t& as, std::vector<u32> gpr_order, std::vector<u32> fpr_order)
-            : as{as}, gpr_order{std::move(gpr_order)}, fpr_order{std::move(fpr_order)} {}
+    explicit RegAlloc(lagoon_assembler_t& as, std::vector<u32> gpr_order, std::vector<u32> fpr_order, IR::Block& block)
+            : block{block}, as{as}, gpr_order{std::move(gpr_order)}, fpr_order{std::move(fpr_order)} {}
+
+    /// The block being emitted: Values refer to its instructions by index.
+    IR::Block& block;
 
     ArgumentInfo GetArgumentInfo(IR::Inst* inst);
     bool IsValueLive(IR::Inst* inst) const;
@@ -133,9 +136,9 @@ public:
     auto ReadD(Argument& arg) { return RAReg<FPR>{*this, false, arg.value}; }
     auto ReadV(Argument& arg) { return RAReg<VPR>{*this, false, arg.value}; }
 
-    auto WriteX(IR::Inst* inst) { return RAReg<GPR>{*this, true, inst ? IR::Value{inst} : IR::Value{}}; }
-    auto WriteD(IR::Inst* inst) { return RAReg<FPR>{*this, true, inst ? IR::Value{inst} : IR::Value{}}; }
-    auto WriteV(IR::Inst* inst) { return RAReg<VPR>{*this, true, inst ? IR::Value{inst} : IR::Value{}}; }
+    auto WriteX(IR::Inst* inst) { return RAReg<GPR>{*this, true, inst ? inst->AsValue() : IR::Value{}}; }
+    auto WriteD(IR::Inst* inst) { return RAReg<FPR>{*this, true, inst ? inst->AsValue() : IR::Value{}}; }
+    auto WriteV(IR::Inst* inst) { return RAReg<VPR>{*this, true, inst ? inst->AsValue() : IR::Value{}}; }
 
     auto ScratchGpr() { return RAReg<GPR>{*this, true, IR::Value{}}; }
     auto ScratchFpr() { return RAReg<FPR>{*this, true, IR::Value{}}; }
@@ -188,7 +191,7 @@ template<typename T>
 RAReg<T>::RAReg(RegAlloc& reg_alloc, bool write, const IR::Value& value)
         : reg_alloc{reg_alloc}, write{write}, value{value} {
     if (!write && !value.IsImmediate()) {
-        reg_alloc.ValueInfo(value.GetInst()).locked++;
+        reg_alloc.ValueInfo(value.GetInst(reg_alloc.block)).locked++;
     }
 }
 
@@ -211,7 +214,7 @@ RAReg<T>::~RAReg() {
             info.realized = false;
         }
     } else if (!value.IsEmpty()) {
-        HostLocInfo& info = reg_alloc.ValueInfo(value.GetInst());
+        HostLocInfo& info = reg_alloc.ValueInfo(value.GetInst(reg_alloc.block));
         info.locked--;
         if (reg) {
             info.realized = false;
@@ -224,7 +227,7 @@ void RAReg<T>::Realize() {
     if (write && value.IsEmpty()) {
         reg = T{reg_alloc.RealizeWriteImpl(nullptr, kind)};
     } else {
-        reg = T{write ? reg_alloc.RealizeWriteImpl(value.GetInst(), kind) : reg_alloc.RealizeReadImpl<kind>(value)};
+        reg = T{write ? reg_alloc.RealizeWriteImpl(value.GetInst(reg_alloc.block), kind) : reg_alloc.RealizeReadImpl<kind>(value)};
     }
 }
 
