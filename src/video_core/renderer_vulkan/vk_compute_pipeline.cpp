@@ -128,7 +128,7 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
     static_assert(Shader::Info::MAX_SSBOS <= VideoCommon::NUM_STORAGE_BUFFERS);
     size_t ssbo_index{};
     for (const auto& desc : info.storage_buffers_descriptors) {
-        ASSERT(desc.count == 1);
+        assert(desc.count == 1);
         buffer_cache.BindComputeStorageBuffer(ssbo_index, desc.cbuf_index, desc.cbuf_offset,
                                               desc.is_written);
         ++ssbo_index;
@@ -146,7 +146,7 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
     const auto& cbufs{qmd.const_buffer_config};
     const bool via_header_index{qmd.linked_tsc != 0};
     const auto read_handle{[&](const auto& desc, u32 index) {
-        ASSERT(((qmd.const_buffer_enable_mask >> desc.cbuf_index) & 1) != 0);
+        assert(((qmd.const_buffer_enable_mask >> desc.cbuf_index) & 1) != 0);
         const u32 index_offset{index << desc.size_shift};
         const u32 offset{desc.cbuf_offset + index_offset};
         const GPUVAddr addr{cbufs[desc.cbuf_index].Address() + offset};
@@ -164,7 +164,7 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
                            : 0;
             }
             if (desc.has_secondary) {
-                ASSERT(((qmd.const_buffer_enable_mask >> desc.secondary_cbuf_index) & 1) != 0);
+                assert(((qmd.const_buffer_enable_mask >> desc.secondary_cbuf_index) & 1) != 0);
                 const u32 secondary_offset{desc.secondary_cbuf_offset + index_offset};
                 const GPUVAddr separate_addr{cbufs[desc.secondary_cbuf_index].Address() +
                                              secondary_offset};

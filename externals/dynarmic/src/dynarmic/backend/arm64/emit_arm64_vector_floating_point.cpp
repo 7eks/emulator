@@ -7,6 +7,8 @@
  */
 
 #include <bit>
+#include <cassert>
+#include <utility>
 #include "dynarmic/mcl/function_info.hpp"
 #include "dynarmic/mcl/integer_of_size.hpp"
 #include <oaknut/oaknut.hpp>
@@ -75,7 +77,7 @@ static void EmitTwoOpArranged(oaknut::CodeGenerator& code, EmitContext& ctx, IR:
         } else if constexpr (size == 64) {
             emit(Qresult->D2(), Qa->D2());
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     });
 }
@@ -103,7 +105,7 @@ static void EmitThreeOpArranged(oaknut::CodeGenerator& code, EmitContext& ctx, I
         } else if constexpr (size == 64) {
             emit(Qresult->D2(), Qa->D2(), Qb->D2());
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     });
 }
@@ -126,7 +128,7 @@ static void EmitFMA(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* ins
         } else if constexpr (size == 64) {
             emit(Qresult->D2(), Qm->D2(), Qn->D2());
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     });
 }
@@ -139,7 +141,7 @@ static void EmitFromFixed(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Ins
     const u8 fbits = args[1].GetImmediateU8();
     const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8());
     const bool fpcr_controlled = args[3].GetImmediateU1();
-    ASSERT(rounding_mode == ctx.FPCR(fpcr_controlled).RMode());
+    assert(rounding_mode == ctx.FPCR(fpcr_controlled).RMode());
     RegAlloc::Realize(Qto, Qfrom);
 
     MaybeStandardFPSCRValue(code, ctx, fpcr_controlled, [&] {
@@ -148,7 +150,7 @@ static void EmitFromFixed(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Ins
         } else if constexpr (size == 64) {
             emit(Qto->D2(), Qfrom->D2(), fbits);
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     });
 }
@@ -170,7 +172,7 @@ void EmitToFixed(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) 
         } else if constexpr (fsize == 64) {
             return Qto->D2();
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     }();
     auto Vfrom = [&] {
@@ -179,7 +181,7 @@ void EmitToFixed(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) 
         } else if constexpr (fsize == 64) {
             return Qfrom->D2();
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     }();
 
@@ -199,7 +201,7 @@ void EmitToFixed(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) 
                 }
             }
         } else {
-            ASSERT(fbits == 0);
+            assert(fbits == 0);
             if constexpr (is_signed) {
                 switch (rounding_mode) {
                 case FP::RoundingMode::ToNearest_TieEven:
@@ -218,10 +220,10 @@ void EmitToFixed(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) 
                     code.FCVTAS(Vto, Vfrom);
                     break;
                 case FP::RoundingMode::ToOdd:
-                    UNREACHABLE();
+                    std::unreachable();
                     break;
                 default:
-                    UNREACHABLE();
+                    std::unreachable();
                 }
             } else {
                 switch (rounding_mode) {
@@ -241,10 +243,10 @@ void EmitToFixed(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) 
                     code.FCVTAU(Vto, Vfrom);
                     break;
                 case FP::RoundingMode::ToOdd:
-                    UNREACHABLE();
+                    std::unreachable();
                     break;
                 default:
-                    UNREACHABLE();
+                    std::unreachable();
                 }
             }
         }
@@ -329,7 +331,7 @@ void EmitIR<IR::Opcode::FPVectorEqual16>(oaknut::CodeGenerator& code, EmitContex
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -346,7 +348,7 @@ template<>
 void EmitIR<IR::Opcode::FPVectorFromHalf32>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const auto rounding_mode = static_cast<FP::RoundingMode>(args[1].GetImmediateU8());
-    ASSERT(rounding_mode == FP::RoundingMode::ToNearest_TieEven);
+    assert(rounding_mode == FP::RoundingMode::ToNearest_TieEven);
     const bool fpcr_controlled = args[2].GetImmediateU1();
 
     auto Qresult = ctx.reg_alloc.WriteQ(inst);
@@ -454,7 +456,7 @@ void EmitIR<IR::Opcode::FPVectorMulAdd16>(oaknut::CodeGenerator& code, EmitConte
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -482,7 +484,7 @@ void EmitIR<IR::Opcode::FPVectorNeg16>(oaknut::CodeGenerator& code, EmitContext&
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -527,7 +529,7 @@ void EmitIR<IR::Opcode::FPVectorRecipEstimate16>(oaknut::CodeGenerator& code, Em
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -545,7 +547,7 @@ void EmitIR<IR::Opcode::FPVectorRecipStepFused16>(oaknut::CodeGenerator& code, E
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -599,7 +601,7 @@ void EmitIR<IR::Opcode::FPVectorRoundInt16>(oaknut::CodeGenerator& code, EmitCon
             : EmitTwoOpFallback<3>(code, ctx, inst, EmitIRVectorRoundInt16Thunk<FPT, FP::RoundingMode::ToNearest_TieAwayFromZero, false>);
         break;
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 
@@ -617,7 +619,7 @@ void EmitIR<IR::Opcode::FPVectorRoundInt32>(oaknut::CodeGenerator& code, EmitCon
 
     MaybeStandardFPSCRValue(code, ctx, fpcr_controlled, [&] {
         if (exact) {
-            ASSERT(ctx.FPCR(fpcr_controlled).RMode() == rounding_mode);
+            assert(ctx.FPCR(fpcr_controlled).RMode() == rounding_mode);
             code.FRINTX(Qresult->S4(), Qoperand->S4());
         } else {
             switch (rounding_mode) {
@@ -637,7 +639,7 @@ void EmitIR<IR::Opcode::FPVectorRoundInt32>(oaknut::CodeGenerator& code, EmitCon
                 code.FRINTA(Qresult->S4(), Qoperand->S4());
                 break;
             default:
-                UNREACHABLE();
+                std::unreachable();
             }
         }
     });
@@ -657,7 +659,7 @@ void EmitIR<IR::Opcode::FPVectorRoundInt64>(oaknut::CodeGenerator& code, EmitCon
 
     MaybeStandardFPSCRValue(code, ctx, fpcr_controlled, [&] {
         if (exact) {
-            ASSERT(ctx.FPCR(fpcr_controlled).RMode() == rounding_mode);
+            assert(ctx.FPCR(fpcr_controlled).RMode() == rounding_mode);
             code.FRINTX(Qresult->D2(), Qoperand->D2());
         } else {
             switch (rounding_mode) {
@@ -677,7 +679,7 @@ void EmitIR<IR::Opcode::FPVectorRoundInt64>(oaknut::CodeGenerator& code, EmitCon
                 code.FRINTA(Qresult->D2(), Qoperand->D2());
                 break;
             default:
-                UNREACHABLE();
+                std::unreachable();
             }
         }
     });
@@ -688,7 +690,7 @@ void EmitIR<IR::Opcode::FPVectorRSqrtEstimate16>(oaknut::CodeGenerator& code, Em
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -706,7 +708,7 @@ void EmitIR<IR::Opcode::FPVectorRSqrtStepFused16>(oaknut::CodeGenerator& code, E
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -743,7 +745,7 @@ template<>
 void EmitIR<IR::Opcode::FPVectorToHalf32>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const auto rounding_mode = static_cast<FP::RoundingMode>(args[1].GetImmediateU8());
-    ASSERT(rounding_mode == FP::RoundingMode::ToNearest_TieEven);
+    assert(rounding_mode == FP::RoundingMode::ToNearest_TieEven);
     const bool fpcr_controlled = args[2].GetImmediateU1();
 
     auto Dresult = ctx.reg_alloc.WriteD(inst);
@@ -761,7 +763,7 @@ void EmitIR<IR::Opcode::FPVectorToSignedFixed16>(oaknut::CodeGenerator& code, Em
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -779,7 +781,7 @@ void EmitIR<IR::Opcode::FPVectorToUnsignedFixed16>(oaknut::CodeGenerator& code, 
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>

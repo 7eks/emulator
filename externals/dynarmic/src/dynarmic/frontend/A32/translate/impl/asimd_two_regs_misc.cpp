@@ -7,6 +7,7 @@
  */
 
 #include <array>
+#include <utility>
 
 #include "dynarmic/mcl/bit.hpp"
 
@@ -172,7 +173,7 @@ bool TranslatorVisitor::asimd_VREV(bool D, size_t sz, size_t Vd, size_t op, bool
             return ir.VectorReverseElementsInHalfGroups(esize, reg_m);
         }
 
-        UNREACHABLE();
+        std::unreachable();
     }();
 
     ir.SetVector(d, result);

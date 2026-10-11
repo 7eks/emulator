@@ -6,9 +6,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
 #include <utility>
-
-#include "dynarmic/common/assert.h"
 
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
 
@@ -83,7 +82,7 @@ bool FPMultiplyByElement(TranslatorVisitor& v, bool Q, bool sz, Imm<1> L, Imm<1>
         case ExtraBehaviorSVXIE::Subtract:
             return v.ir.FPVectorMulAdd(esize, operand3, v.ir.FPVectorNeg(esize, operand1), operand2);
         }
-        UNREACHABLE();
+        std::unreachable();
     }();
     v.V(datasize, Vd, result);
     return true;
@@ -113,7 +112,7 @@ bool FPMultiplyByElementHalfPrecision(TranslatorVisitor& v, bool Q, Imm<1> L, Im
         case ExtraBehaviorSVXIE::Subtract:
             return v.ir.FPVectorMulAdd(esize, operand3, v.ir.FPVectorNeg(esize, operand1), operand2);
         }
-        UNREACHABLE();
+        std::unreachable();
     }();
     v.V(datasize, Vd, result);
     return true;
@@ -223,7 +222,7 @@ bool TranslatorVisitor::FCMLA_elt(bool Q, Imm<2> size, Imm<1> L, Imm<1> M, Imm<4
     const size_t esize = 8U << size.ZeroExtend();
 
     // TODO: We don't support the half-precision floating point variant yet.
-    ASSERT(esize != 16);
+    assert(esize != 16);
 
     const size_t index = [=] {
         if (size == 0b01) {

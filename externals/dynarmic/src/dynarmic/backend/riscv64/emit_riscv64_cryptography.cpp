@@ -6,6 +6,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
+
 #include <biscuit/assembler.hpp>
 #include <fmt/ostream.h>
 
@@ -22,82 +24,82 @@ namespace Dynarmic::Backend::RV64 {
 
 template<>
 void EmitIR<IR::Opcode::CRC32Castagnoli8>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::CRC32Castagnoli16>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::CRC32Castagnoli32>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::CRC32Castagnoli64>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::CRC32ISO8>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::CRC32ISO16>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::CRC32ISO32>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::CRC32ISO64>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::AESDecryptSingleRound>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::AESEncryptSingleRound>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::AESInverseMixColumns>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::AESMixColumns>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::SM4AccessSubstitutionBox>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::SHA256Hash>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::SHA256MessageSchedule0>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::SHA256MessageSchedule1>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 }  // namespace Dynarmic::Backend::RV64

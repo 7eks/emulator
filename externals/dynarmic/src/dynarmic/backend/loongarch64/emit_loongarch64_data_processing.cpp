@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <cassert>
+
 #include "dynarmic/backend/loongarch64/lagoon_cpp.h"
 
 #include "dynarmic/backend/loongarch64/abi.h"
@@ -22,8 +24,8 @@ void EmitIR<IR::Opcode::LogicalShiftLeft32>(lagoon_assembler_t& as, EmitContext&
     auto& shift_arg = args[1];
     auto& carry_arg = args[2];
 
-    ASSERT(carry_inst != nullptr);
-    ASSERT(shift_arg.IsImmediate());
+    assert(carry_inst != nullptr);
+    assert(shift_arg.IsImmediate());
 
     auto Xresult = ctx.reg_alloc.WriteX(inst);
     auto Xcarry_out = ctx.reg_alloc.WriteX(carry_inst);

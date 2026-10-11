@@ -8,9 +8,11 @@
 
 #include "dynarmic/backend/x64/a64_emit_x64.h"
 
+#include <cassert>
+#include <utility>
+
 #include <fmt/format.h>
 #include <fmt/ostream.h>
-#include "dynarmic/common/assert.h"
 #include "dynarmic/common/common_types.h"
 #include "dynarmic/ir/terminal.h"
 #include "dynarmic/mcl/integer_of_size.hpp"
@@ -95,7 +97,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) noexcept {
     code.mov(code.qword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer)], rbp);
     code.lea(rbp, code.ptr[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, abi_base_pointer) - 8]);
 
-    DEBUG_ASSERT(block.GetCondition() == IR::Cond::AL);
+    assert(block.GetCondition() == IR::Cond::AL);
     typedef void (EmitX64::*EmitHandlerFn)(EmitContext& context, IR::Inst* inst);
     constexpr EmitHandlerFn opcode_handlers[] = {
 #define OPCODE(name, type, ...) &EmitX64::Emit##name,
@@ -129,7 +131,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) noexcept {
 #undef A32OPC
 #undef A64OPC
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
 opcode_branch:
         (this->*opcode_handlers[size_t(opcode)])(ctx, &inst);
@@ -501,7 +503,7 @@ void A64EmitX64::EmitA64SetPC(A64EmitContext& ctx, IR::Inst* inst) {
 void A64EmitX64::EmitA64CallSupervisor(A64EmitContext& ctx, IR::Inst* inst) {
     ctx.reg_alloc.HostCall(code, nullptr);
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ASSERT(args[0].IsImmediate());
+    assert(args[0].IsImmediate());
     const u32 imm = args[0].GetImmediateU32();
     Devirtualize<&A64::UserCallbacks::CallSVC>(conf.callbacks).EmitCall(code, [&](RegList param) {
         code.mov(param[0], imm);
@@ -513,7 +515,7 @@ void A64EmitX64::EmitA64CallSupervisor(A64EmitContext& ctx, IR::Inst* inst) {
 void A64EmitX64::EmitA64ExceptionRaised(A64EmitContext& ctx, IR::Inst* inst) {
     ctx.reg_alloc.HostCall(code, nullptr);
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ASSERT(args[0].IsImmediate() && args[1].IsImmediate());
+    assert(args[0].IsImmediate() && args[1].IsImmediate());
     const u64 pc = args[0].GetImmediateU64();
     const u64 exception = args[1].GetImmediateU64();
     Devirtualize<&A64::UserCallbacks::ExceptionRaised>(conf.callbacks).EmitCall(code, [&](RegList param) {
@@ -734,7 +736,7 @@ bool A64EmitX64::EmitLeafTerminal(IR::Term::LeafTerminal const& terminal, IR::Lo
         return EmitTerminalImpl(*this, *x, initial_location, is_single_step);
     if (auto const x = std::get_if<IR::Term::FastDispatchHint>(&terminal))
         return EmitTerminalImpl(*this, *x, initial_location, is_single_step);
-    UNREACHABLE();
+    std::unreachable();
 }
 
 bool A64EmitX64::EmitTerminal(IR::Term::Terminal const& terminal, IR::LocationDescriptor initial_location, bool is_single_step) noexcept {
@@ -746,7 +748,7 @@ bool A64EmitX64::EmitTerminal(IR::Term::Terminal const& terminal, IR::LocationDe
         return EmitTerminalImpl(*this, *x, initial_location, is_single_step);
     if (auto const x = std::get_if<IR::Term::CheckHalt>(&terminal))
         return EmitTerminalImpl(*this, *x, initial_location, is_single_step);
-    UNREACHABLE();
+    std::unreachable();
 }
 
 void A64EmitX64::EmitPatchJg(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) {

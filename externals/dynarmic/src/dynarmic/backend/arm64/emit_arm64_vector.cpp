@@ -6,6 +6,9 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
+#include <utility>
+
 #include <oaknut/oaknut.hpp>
 
 #include "dynarmic/backend/arm64/a32_jitstate.h"
@@ -45,7 +48,7 @@ static void EmitTwoOpArranged(oaknut::CodeGenerator& code, EmitContext& ctx, IR:
         } else if constexpr (size == 64) {
             emit(Qresult->D2(), Qoperand->D2());
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     });
 }
@@ -68,7 +71,7 @@ static void EmitTwoOpArrangedWiden(oaknut::CodeGenerator& code, EmitContext& ctx
         } else if constexpr (size == 32) {
             emit(Qresult->D2(), Qoperand->toD().S2());
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     });
 }
@@ -83,7 +86,7 @@ static void EmitTwoOpArrangedNarrow(oaknut::CodeGenerator& code, EmitContext& ct
         } else if constexpr (size == 64) {
             emit(Qresult->toD().S2(), Qoperand->D2());
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     });
 }
@@ -106,7 +109,7 @@ static void EmitTwoOpArrangedPairWiden(oaknut::CodeGenerator& code, EmitContext&
         } else if constexpr (size == 32) {
             emit(Qresult->D2(), Qoperand->S4());
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     });
 }
@@ -121,7 +124,7 @@ static void EmitTwoOpArrangedLower(oaknut::CodeGenerator& code, EmitContext& ctx
         } else if constexpr (size == 32) {
             emit(Qresult->toD().S2(), Qoperand->toD().S2());
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     });
 }
@@ -149,7 +152,7 @@ static void EmitThreeOpArranged(oaknut::CodeGenerator& code, EmitContext& ctx, I
         } else if constexpr (size == 64) {
             emit(Qresult->D2(), Qa->D2(), Qb->D2());
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     });
 }
@@ -174,7 +177,7 @@ static void EmitThreeOpArrangedWiden(oaknut::CodeGenerator& code, EmitContext& c
         } else if constexpr (size == 64) {
             emit(Qresult->Q1(), Qa->toD().D1(), Qb->toD().D1());
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     });
 }
@@ -197,7 +200,7 @@ static void EmitThreeOpArrangedLower(oaknut::CodeGenerator& code, EmitContext& c
         } else if constexpr (size == 32) {
             emit(Qresult->toD().S2(), Qa->toD().S2(), Qb->toD().S2());
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     });
 }
@@ -219,7 +222,7 @@ static void EmitSaturatedAccumulate(oaknut::CodeGenerator&, EmitContext& ctx, IR
     } else if constexpr (size == 64) {
         emit(Qaccumulator->D2(), Qoperand->D2());
     } else {
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 
@@ -240,7 +243,7 @@ static void EmitImmShift(oaknut::CodeGenerator&, EmitContext& ctx, IR::Inst* ins
     } else if constexpr (size == 64) {
         emit(Qresult->D2(), Qoperand->D2(), shift_amount);
     } else {
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 
@@ -268,14 +271,14 @@ static void EmitReduce(oaknut::CodeGenerator&, EmitContext& ctx, IR::Inst* inst,
     } else if constexpr (size == 64) {
         emit(Vresult, Qoperand->D2());
     } else {
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 
 template<std::size_t size, typename EmitFn>
 static void EmitGetElement(oaknut::CodeGenerator&, EmitContext& ctx, IR::Inst* inst, EmitFn emit) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ASSERT(args[1].IsImmediate());
+    assert(args[1].IsImmediate());
     const u8 index = args[1].GetImmediateU8();
 
     auto Rresult = ctx.reg_alloc.WriteReg<std::max<std::size_t>(32, size)>(inst);
@@ -310,7 +313,7 @@ void EmitIR<IR::Opcode::VectorGetElement64>(oaknut::CodeGenerator& code, EmitCon
 template<std::size_t size, typename EmitFn>
 static void EmitSetElement(oaknut::CodeGenerator&, EmitContext& ctx, IR::Inst* inst, EmitFn emit) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ASSERT(args[1].IsImmediate());
+    assert(args[1].IsImmediate());
     const u8 index = args[1].GetImmediateU8();
 
     auto Qvector = ctx.reg_alloc.ReadWriteQ(args[0], inst);
@@ -640,7 +643,7 @@ void EmitIR<IR::Opcode::VectorEqual128>(oaknut::CodeGenerator& code, EmitContext
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -650,7 +653,7 @@ void EmitIR<IR::Opcode::VectorExtract>(oaknut::CodeGenerator& code, EmitContext&
     auto Qa = ctx.reg_alloc.ReadQ(args[0]);
     auto Qb = ctx.reg_alloc.ReadQ(args[1]);
     const u8 position = args[2].GetImmediateU8();
-    ASSERT(position % 8 == 0);
+    assert(position % 8 == 0);
     RegAlloc::Realize(Qresult, Qa, Qb);
 
     code.EXT(Qresult->B16(), Qa->B16(), Qb->B16(), position / 8);
@@ -663,7 +666,7 @@ void EmitIR<IR::Opcode::VectorExtractLower>(oaknut::CodeGenerator& code, EmitCon
     auto Da = ctx.reg_alloc.ReadD(args[0]);
     auto Db = ctx.reg_alloc.ReadD(args[1]);
     const u8 position = args[2].GetImmediateU8();
-    ASSERT(position % 8 == 0);
+    assert(position % 8 == 0);
     RegAlloc::Realize(Dresult, Da, Db);
 
     code.EXT(Dresult->B8(), Da->B8(), Db->B8(), position / 8);
@@ -958,7 +961,7 @@ void EmitIR<IR::Opcode::VectorMultiply32>(oaknut::CodeGenerator& code, EmitConte
 
 template<>
 void EmitIR<IR::Opcode::VectorMultiply64>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
-    ASSERT(ctx.conf.very_verbose_debugging_output && "VectorMultiply64 is for debugging only");
+    assert(ctx.conf.very_verbose_debugging_output && "VectorMultiply64 is for debugging only");
     EmitThreeOp(code, ctx, inst, [&](auto& Qresult, auto& Qa, auto& Qb) {
         code.FMOV(Xscratch0, Qa->toD());
         code.FMOV(Xscratch1, Qb->toD());
@@ -1289,7 +1292,7 @@ void EmitIR<IR::Opcode::VectorReduceAdd64>(oaknut::CodeGenerator& code, EmitCont
 template<>
 void EmitIR<IR::Opcode::VectorRotateWholeVectorRight>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
     EmitImmShift<8>(code, ctx, inst, [&](auto Vresult, auto Voperand, u8 shift_amount) {
-        ASSERT(shift_amount % 8 == 0);
+        assert(shift_amount % 8 == 0);
         const u8 ext_imm = (shift_amount % 128) / 8;
         code.EXT(Vresult, Voperand, Voperand, ext_imm);
     });
@@ -1385,7 +1388,7 @@ void EmitIR<IR::Opcode::VectorSignExtend64>(oaknut::CodeGenerator& code, EmitCon
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -1408,7 +1411,7 @@ void EmitIR<IR::Opcode::VectorSignedMultiply16>(oaknut::CodeGenerator& code, Emi
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -1416,7 +1419,7 @@ void EmitIR<IR::Opcode::VectorSignedMultiply32>(oaknut::CodeGenerator& code, Emi
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -1602,12 +1605,12 @@ void EmitIR<IR::Opcode::VectorSub64>(oaknut::CodeGenerator& code, EmitContext& c
 template<>
 void EmitIR<IR::Opcode::VectorTable>(oaknut::CodeGenerator&, EmitContext&, IR::Inst* inst) {
     // Do nothing. We *want* to hold on to the refcount for our arguments, so VectorTableLookup can use our arguments.
-    ASSERT(inst->UseCount() == 1 && "Table cannot be used multiple times");
+    assert(inst->UseCount() == 1 && "Table cannot be used multiple times");
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorTableLookup64>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
-    ASSERT(inst->GetArg(1).GetInst()->GetOpcode() == IR::Opcode::VectorTable);
+    assert(inst->GetArg(1).GetInst()->GetOpcode() == IR::Opcode::VectorTable);
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     auto table = ctx.reg_alloc.GetArgumentInfo(inst->GetArg(1).GetInst());
@@ -1668,13 +1671,13 @@ void EmitIR<IR::Opcode::VectorTableLookup64>(oaknut::CodeGenerator& code, EmitCo
         }
         break;
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 
 template<>
 void EmitIR<IR::Opcode::VectorTableLookup128>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
-    ASSERT(inst->GetArg(1).GetInst()->GetOpcode() == IR::Opcode::VectorTable);
+    assert(inst->GetArg(1).GetInst()->GetOpcode() == IR::Opcode::VectorTable);
 
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     auto table = ctx.reg_alloc.GetArgumentInfo(inst->GetArg(1).GetInst());
@@ -1732,7 +1735,7 @@ void EmitIR<IR::Opcode::VectorTableLookup128>(oaknut::CodeGenerator& code, EmitC
         }
         break;
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 
@@ -1780,7 +1783,7 @@ void EmitIR<IR::Opcode::VectorUnsignedMultiply16>(oaknut::CodeGenerator& code, E
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>
@@ -1788,7 +1791,7 @@ void EmitIR<IR::Opcode::VectorUnsignedMultiply32>(oaknut::CodeGenerator& code, E
     (void)code;
     (void)ctx;
     (void)inst;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<>

@@ -6,7 +6,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
-#include "dynarmic/common/assert.h"
+#include <utility>
+
 #include "dynarmic/mcl/bit.hpp"
 
 #include "dynarmic/frontend/A32/translate/impl/a32_translate_impl.h"
@@ -110,7 +111,7 @@ bool TranslatorVisitor::asimd_VMOV_imm(Imm<1> a, bool D, Imm<1> b, Imm<1> c, Imm
         return bic();
     }
 
-    UNREACHABLE();
+    std::unreachable();
 }
 
 }  // namespace Dynarmic::A32

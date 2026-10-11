@@ -6,7 +6,6 @@
 #include <string>
 #include <utility>
 
-#include "dynarmic/common/assert.h"
 #include "dynarmic/common/common_types.h"
 #include "dynarmic/interface/A64/a64.h"
 

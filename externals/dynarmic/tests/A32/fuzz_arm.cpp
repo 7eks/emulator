@@ -8,10 +8,12 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cstdio>
 #include <functional>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
@@ -65,7 +67,7 @@ bool AnyLocationDescriptorForTerminalHas(IR::Terminal terminal, Fn fn) {
         } else if constexpr (std::is_same_v<T, IR::Term::CheckHalt>) {
             return AnyLocationDescriptorForTerminalHas(t.else_, fn);
         } else {
-            ASSERT(false && "Invalid terminal type");
+            assert(false && "Invalid terminal type");
             return false;
         }
     }, terminal);
@@ -273,7 +275,7 @@ std::vector<u16> GenRandomThumbInst(u32 pc, bool is_last_inst, A32::ITState it_s
             } else if (bitstring.substr(0, 8) == "11110100") {
                 bitstring.replace(0, 8, "11111001");
             } else {
-                UNREACHABLE(); // "Unhandled ASIMD instruction: {} {}", fn, bs);
+                std::unreachable(); // "Unhandled ASIMD instruction: {} {}", fn, bs);
             }
             if (std::find(do_not_test.begin(), do_not_test.end(), fn) != do_not_test.end()) {
                 invalid.emplace_back(InstructionGenerator{bitstring.c_str()});

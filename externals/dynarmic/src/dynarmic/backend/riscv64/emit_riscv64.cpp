@@ -9,6 +9,8 @@
 #include "dynarmic/backend/riscv64/emit_riscv64.h"
 
 #include <bit>
+#include <cassert>
+#include <utility>
 
 #include <biscuit/assembler.hpp>
 #include <fmt/ostream.h>
@@ -35,39 +37,39 @@ void EmitIR<IR::Opcode::Identity>(biscuit::Assembler&, EmitContext& ctx, IR::Ins
 
 template<>
 void EmitIR<IR::Opcode::Breakpoint>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::CallHostFunction>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::PushRSB>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::GetCarryFromOp>(biscuit::Assembler&, EmitContext& ctx, IR::Inst* inst) {
     [[maybe_unused]] auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ASSERT(ctx.reg_alloc.IsValueLive(inst));
+    assert(ctx.reg_alloc.IsValueLive(inst));
 }
 
 template<>
 void EmitIR<IR::Opcode::GetOverflowFromOp>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::GetGEFromOp>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::GetNZCVFromOp>(biscuit::Assembler&, EmitContext& ctx, IR::Inst* inst) {
     [[maybe_unused]] auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ASSERT(ctx.reg_alloc.IsValueLive(inst));
+    assert(ctx.reg_alloc.IsValueLive(inst));
 }
 
 template<>
@@ -87,12 +89,12 @@ void EmitIR<IR::Opcode::GetNZFromOp>(biscuit::Assembler& as, EmitContext& ctx, I
 
 template<>
 void EmitIR<IR::Opcode::GetUpperFromOp>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
 void EmitIR<IR::Opcode::GetLowerFromOp>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 template<>
@@ -109,7 +111,7 @@ void EmitIR<IR::Opcode::GetCFlagFromNZCV>(biscuit::Assembler& as, EmitContext& c
 
 template<>
 void EmitIR<IR::Opcode::NZCVFromPackedFlags>(biscuit::Assembler&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented instruction");
+    assert(false && "Unimplemented instruction");
 }
 
 EmittedBlockInfo EmitRV64(biscuit::Assembler& as, IR::Block block, const EmitConfig& emit_conf) {
@@ -143,7 +145,7 @@ EmittedBlockInfo EmitRV64(biscuit::Assembler& as, IR::Block block, const EmitCon
 #undef A32OPC
 #undef A64OPC
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 

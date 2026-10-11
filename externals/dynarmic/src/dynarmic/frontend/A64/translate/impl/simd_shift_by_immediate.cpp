@@ -6,6 +6,9 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
+#include <utility>
+
 #include "dynarmic/mcl/bit.hpp"
 
 #include "dynarmic/common/fp/rounding_mode.h"
@@ -127,10 +130,10 @@ bool ShiftRightNarrowingSSBI(TranslatorVisitor& v, bool Q, Imm<4> immh, Imm<3> i
             }
             return v.ir.VectorUnsignedSaturatedNarrow(source_esize, wide_result);
         case NarrowingSSBI::SaturateToSigned:
-            ASSERT(SignednessSSBI == SignednessSSBI::Signed);
+            assert(SignednessSSBI == SignednessSSBI::Signed);
             return v.ir.VectorSignedSaturatedNarrowToSigned(source_esize, wide_result);
         }
-        UNREACHABLE();
+        std::unreachable();
     }();
 
     v.Vpart(64, Vd, part, result);
@@ -222,7 +225,7 @@ bool ConvertFloat(TranslatorVisitor& v, bool Q, Imm<4> immh, Imm<3> immb, Vec Vn
                      ? v.ir.FPVectorToSignedFixed(esize, operand, fbits, rounding_mode)
                      : v.ir.FPVectorToUnsignedFixed(esize, operand, fbits, rounding_mode);
         }
-        UNREACHABLE();
+        std::unreachable();
     }();
 
     v.V(datasize, Vd, result);

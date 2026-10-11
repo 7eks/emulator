@@ -48,7 +48,7 @@ LinkTarget ReadMemoryLinkTarget(std::size_t bitsize) {
     case 128:
         return LinkTarget::ReadMemory128;
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 LinkTarget WriteMemoryLinkTarget(std::size_t bitsize) {
@@ -64,7 +64,7 @@ LinkTarget WriteMemoryLinkTarget(std::size_t bitsize) {
     case 128:
         return LinkTarget::WriteMemory128;
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 LinkTarget WrappedReadMemoryLinkTarget(std::size_t bitsize) {
@@ -80,7 +80,7 @@ LinkTarget WrappedReadMemoryLinkTarget(std::size_t bitsize) {
     case 128:
         return LinkTarget::WrappedReadMemory128;
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 LinkTarget WrappedWriteMemoryLinkTarget(std::size_t bitsize) {
@@ -96,7 +96,7 @@ LinkTarget WrappedWriteMemoryLinkTarget(std::size_t bitsize) {
     case 128:
         return LinkTarget::WrappedWriteMemory128;
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 LinkTarget ExclusiveReadMemoryLinkTarget(std::size_t bitsize) {
@@ -112,7 +112,7 @@ LinkTarget ExclusiveReadMemoryLinkTarget(std::size_t bitsize) {
     case 128:
         return LinkTarget::ExclusiveReadMemory128;
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 LinkTarget ExclusiveWriteMemoryLinkTarget(std::size_t bitsize) {
@@ -128,7 +128,7 @@ LinkTarget ExclusiveWriteMemoryLinkTarget(std::size_t bitsize) {
     case 128:
         return LinkTarget::ExclusiveWriteMemory128;
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 template<std::size_t bitsize>
@@ -235,7 +235,7 @@ void EmitDetectMisalignedVAddr(oaknut::CodeGenerator& code, EmitContext& ctx, oa
             case 128:
                 return 0b1111;
             default:
-                UNREACHABLE();
+                std::unreachable();
             }
         }();
 
@@ -318,7 +318,7 @@ CodePtr EmitMemoryLdr(oaknut::CodeGenerator& code, int value_idx, oaknut::XReg X
             code.DMB(oaknut::BarrierOp::ISH);
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     } else {
         fastmem_location = code.xptr<CodePtr>();
@@ -340,7 +340,7 @@ CodePtr EmitMemoryLdr(oaknut::CodeGenerator& code, int value_idx, oaknut::XReg X
             code.LDR(oaknut::QReg{value_idx}, Xbase, Roffset, index_ext);
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 
@@ -379,7 +379,7 @@ CodePtr EmitMemoryStr(oaknut::CodeGenerator& code, int value_idx, oaknut::XReg X
             code.DMB(oaknut::BarrierOp::ISH);
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     } else {
         fastmem_location = code.xptr<CodePtr>();
@@ -401,7 +401,7 @@ CodePtr EmitMemoryStr(oaknut::CodeGenerator& code, int value_idx, oaknut::XReg X
             code.STR(oaknut::QReg{value_idx}, Xbase, Roffset, index_ext);
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 

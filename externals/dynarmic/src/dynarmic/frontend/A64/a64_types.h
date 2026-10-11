@@ -8,10 +8,10 @@
 
 #pragma once
 
+#include <cassert>
 #include <string>
 
 #include <fmt/format.h>
-#include "dynarmic/common/assert.h"
 #include "dynarmic/common/common_types.h"
 
 #include "dynarmic/ir/cond.h"
@@ -114,14 +114,14 @@ constexpr size_t VecNumber(Vec vec) {
 
 inline Reg operator+(Reg reg, size_t number) {
     const size_t new_reg = RegNumber(reg) + number;
-    ASSERT(new_reg <= 31);
+    assert(new_reg <= 31);
 
     return static_cast<Reg>(new_reg);
 }
 
 inline Vec operator+(Vec vec, size_t number) {
     const size_t new_vec = VecNumber(vec) + number;
-    ASSERT(new_vec <= 31);
+    assert(new_vec <= 31);
 
     return static_cast<Vec>(new_vec);
 }

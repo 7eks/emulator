@@ -14,7 +14,6 @@
 #include <utility>
 #include <vector>
 
-#include "dynarmic/common/assert.h"
 #include "dynarmic/common/common_types.h"
 #include "dynarmic/mcl/is_instance_of_template.hpp"
 #include <oaknut/oaknut.hpp>
@@ -187,7 +186,7 @@ public:
         } else if constexpr (size == 32) {
             return ReadW(arg);
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 
@@ -204,7 +203,7 @@ public:
         } else if constexpr (size == 8) {
             return ReadB(arg);
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 
@@ -226,7 +225,7 @@ public:
         } else if constexpr (size == 32) {
             return WriteW(inst);
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 
@@ -243,7 +242,7 @@ public:
         } else if constexpr (size == 8) {
             return WriteB(inst);
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 
@@ -263,7 +262,7 @@ public:
         } else if constexpr (size == 32) {
             return ReadWriteW(arg, inst);
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 
@@ -280,7 +279,7 @@ public:
         } else if constexpr (size == 8) {
             return ReadWriteB(arg, inst);
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 
@@ -371,7 +370,7 @@ void RAReg<T>::Realize() {
         reg = T{reg_alloc.RealizeReadWriteImpl<kind>(read_value, write_value)};
         break;
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 

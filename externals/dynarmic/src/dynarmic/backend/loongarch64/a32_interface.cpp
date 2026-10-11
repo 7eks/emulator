@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <cassert>
 #include <memory>
 #include <mutex>
 
 #include <boost/icl/interval_set.hpp>
-#include "dynarmic/common/assert.h"
 #include "dynarmic/common/common_types.h"
 
 #include "dynarmic/backend/loongarch64/a32_address_space.h"
@@ -25,7 +25,7 @@ struct Jit::Impl final {
             , current_address_space(conf) {}
 
     HaltReason Run() {
-        ASSERT(!jit_interface->is_executing);
+        assert(!jit_interface->is_executing);
         jit_interface->is_executing = true;
 
         const auto location_descriptor = current_state.GetLocationDescriptor();
@@ -38,7 +38,7 @@ struct Jit::Impl final {
     }
 
     HaltReason Step() {
-        ASSERT(!jit_interface->is_executing);
+        assert(!jit_interface->is_executing);
         jit_interface->is_executing = true;
 
         const auto location_descriptor = A32::LocationDescriptor{current_state.GetLocationDescriptor()}.SetSingleStepping(true);

@@ -6,11 +6,14 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
+
 #include <fmt/format.h>
 #include "dynarmic/tests/unicorn_emu/a64_unicorn.h"
-#include "dynarmic/common/assert.h"
 
-#define CHECKED(expr) do if ((expr)) ASSERT(false && "Call " #expr " failed with error\n"); while (0)
+#include <utility>
+
+#define CHECKED(expr) do if ((expr)) assert(false && "Call " #expr " failed with error\n"); while (0)
 
 constexpr u64 BEGIN_ADDRESS = 0;
 constexpr u64 END_ADDRESS = ~u64(0);
@@ -242,7 +245,7 @@ bool A64Unicorn::MemoryWriteHook(uc_engine* /*uc*/, uc_mem_type /*type*/, u64 st
         this_->testenv.MemoryWrite64(start_address, value);
         break;
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 
     return true;

@@ -8,8 +8,9 @@
 
 #pragma once
 
+#include <utility>
+
 #include <ankerl/unordered_dense.h>
-#include "dynarmic/common/assert.h"
 #include "dynarmic/common/common_types.h"
 #include "dynarmic/interface/A64/a64.h"
 
@@ -106,11 +107,11 @@ public:
     }
 
     void CallSVC(std::uint32_t swi) override {
-        UNREACHABLE(); //ASSERT(false && "CallSVC({})", swi);
+        std::unreachable(); //ASSERT(false && "CallSVC({})", swi);
     }
 
     void ExceptionRaised(u64 pc, Dynarmic::A64::Exception /*exception*/) override {
-        UNREACHABLE(); //ASSERT(false && "ExceptionRaised({:016x})", pc);
+        std::unreachable(); //ASSERT(false && "ExceptionRaised({:016x})", pc);
     }
 
     void AddTicks(std::uint64_t ticks) override {
@@ -205,11 +206,11 @@ public:
     }
 
     void CallSVC(std::uint32_t swi) override {
-        UNREACHABLE(); //ASSERT(false && "CallSVC({})", swi);
+        std::unreachable(); //ASSERT(false && "CallSVC({})", swi);
     }
 
     void ExceptionRaised(u64 pc, Dynarmic::A64::Exception) override {
-        UNREACHABLE(); //ASSERT(false && "ExceptionRaised({:016x})", pc);
+        std::unreachable(); //ASSERT(false && "ExceptionRaised({:016x})", pc);
     }
 
     void AddTicks(std::uint64_t ticks) override {

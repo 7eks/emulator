@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <utility>
+
 #include "dynarmic/frontend/A32/translate/impl/a32_translate_impl.h"
 
 namespace Dynarmic::A32 {
@@ -74,7 +76,7 @@ bool CRC32Variant(TranslatorVisitor& v, Cond cond, Imm<2> sz, Reg n, Reg d, Reg 
             }
         }
 
-        UNREACHABLE();
+        std::unreachable();
     }();
 
     v.ir.SetRegister(d, result);

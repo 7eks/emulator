@@ -132,7 +132,7 @@ Shader::AttributeType CastAttributeType(const FixedPipelineState::VertexAttribut
     switch (attr.Type()) {
     case Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Type::
         UnusedEnumDoNotUseBecauseItWillGoAway:
-        ASSERT_MSG(false, "Invalid vertex attribute type!");
+        assert(false && "Invalid vertex attribute type!");
         return Shader::AttributeType::Disabled;
     case Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Type::SNorm:
     case Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Type::UNorm:
@@ -232,7 +232,7 @@ Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> program
             case Tegra::Engines::Maxwell3D::Regs::Tessellation::DomainType::Quads:
                 return Shader::TessPrimitive::Quads;
             }
-            ASSERT(false);
+            assert(false);
             return Shader::TessPrimitive::Triangles;
         }();
         info.tess_spacing = [&] {
@@ -245,7 +245,7 @@ Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> program
             case Tegra::Engines::Maxwell3D::Regs::Tessellation::Spacing::FractionalEven:
                 return Shader::TessSpacing::FractionalEven;
             }
-            ASSERT(false);
+            assert(false);
             return Shader::TessSpacing::Equal;
         }();
         break;

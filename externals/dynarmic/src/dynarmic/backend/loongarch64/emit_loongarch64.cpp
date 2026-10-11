@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <cassert>
+#include <utility>
 #include <variant>
 #include "dynarmic/backend/loongarch64/emit_loongarch64.h"
 
@@ -16,7 +18,7 @@ namespace Dynarmic::Backend::LoongArch64 {
 
 template<IR::Opcode op>
 void EmitIR(lagoon_assembler_t&, EmitContext&, IR::Inst*) {
-    ASSERT(false && "Unimplemented opcode");
+    assert(false && "Unimplemented opcode");
 }
 
 template<>
@@ -36,7 +38,7 @@ void EmitIR<IR::Opcode::LogicalShiftLeft32>(lagoon_assembler_t&, EmitContext& ct
 
 template<>
 void EmitIR<IR::Opcode::GetCarryFromOp>(lagoon_assembler_t&, EmitContext& ctx, IR::Inst* inst) {
-    ASSERT(ctx.reg_alloc.IsValueLive(inst));
+    assert(ctx.reg_alloc.IsValueLive(inst));
 }
 
 template<>
@@ -85,7 +87,7 @@ EmittedBlockInfo EmitLoongArch64(lagoon_assembler_t& as, IR::Block block, const 
 #undef A32OPC
 #undef A64OPC
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
 
         reg_alloc.UpdateAllUses();
@@ -98,7 +100,7 @@ EmittedBlockInfo EmitLoongArch64(lagoon_assembler_t& as, IR::Block block, const 
     const auto term = block.GetTerminal();
     const IR::Term::LeafTerminal* leaft_term = std::get_if<IR::Term::LeafTerminal>(&term);
     const IR::Term::LinkBlock* link_block_term = std::get_if<IR::Term::LinkBlock>(leaft_term);
-    ASSERT(link_block_term);
+    assert(link_block_term);
     la_load_immediate64(&as, Xscratch0, link_block_term->next.Value());
     la_st_w(&as, Xscratch0, Xstate, static_cast<int32_t>(offsetof(A32JitState, regs) + sizeof(u32) * 15));
 

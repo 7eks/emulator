@@ -9,9 +9,9 @@
 #pragma once
 
 #include <array>
+#include <cassert>
 #include <tuple>
 #include <utility>
-#include "dynarmic/common/assert.h"
 #include "dynarmic/mcl/bit.hpp"
 
 namespace Dynarmic::Decoder {
@@ -93,7 +93,7 @@ struct detail {
         }
 #if !defined(DYNARMIC_IGNORE_ASSERTS) && !defined(__ANDROID__)
         // Avoids a MSVC ICE, and avoids Android NDK issue.
-        DEBUG_ASSERT(std::all_of(masks.begin(), masks.end(), [](auto m) { return m != 0; }));
+        assert(std::all_of(masks.begin(), masks.end(), [](auto m) { return m != 0; }));
 #endif
         return std::make_tuple(masks, shifts);
     }

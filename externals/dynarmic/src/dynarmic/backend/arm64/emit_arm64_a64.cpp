@@ -7,6 +7,7 @@
  */
 
 #include <bit>
+#include <utility>
 #include <oaknut/oaknut.hpp>
 
 #include "dynarmic/backend/arm64/a64_jitstate.h"
@@ -143,7 +144,7 @@ void EmitA64LeafTerminal(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Term
         return EmitA64Terminal(code, ctx, *x, initial_location, is_single_step);
     if (auto const x = std::get_if<IR::Term::FastDispatchHint>(&terminal))
         return EmitA64Terminal(code, ctx, *x, initial_location, is_single_step);
-    UNREACHABLE();
+    std::unreachable();
 }
 
 void EmitA64Terminal(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Term::Terminal const& terminal, IR::LocationDescriptor initial_location, bool is_single_step) {
@@ -155,7 +156,7 @@ void EmitA64Terminal(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Term::Te
         return EmitA64Terminal(code, ctx, *x, initial_location, is_single_step);
     if (auto const x = std::get_if<IR::Term::CheckHalt>(&terminal))
         return EmitA64Terminal(code, ctx, *x, initial_location, is_single_step);
-    UNREACHABLE();
+    std::unreachable();
 }
 
 void EmitA64Terminal(oaknut::CodeGenerator& code, EmitContext& ctx) {

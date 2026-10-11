@@ -17,7 +17,7 @@ Scheduler::~Scheduler() = default;
 void Scheduler::Push(s32 channel, CommandList&& entries) {
     std::unique_lock lk(scheduling_guard);
     auto it = channels.find(channel);
-    ASSERT(it != channels.end());
+    assert(it != channels.end());
     auto channel_state = it->second;
     gpu.BindChannel(channel_state->bind_id);
     channel_state->dma_pusher->Push(std::move(entries));

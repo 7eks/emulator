@@ -601,7 +601,7 @@ void BufferCache<P>::BindComputeStorageBuffer(size_t ssbo_index, u32 cbuf_index,
     channel_state->written_compute_storage_buffers |= (is_written ? 1U : 0U) << ssbo_index;
 
     const auto& launch_desc = kepler_compute->launch_description;
-    ASSERT(((launch_desc.const_buffer_enable_mask >> cbuf_index) & 1) != 0);
+    assert(((launch_desc.const_buffer_enable_mask >> cbuf_index) & 1) != 0);
 
     const auto& cbufs = launch_desc.const_buffer_config;
     const GPUVAddr ssbo_addr = cbufs[cbuf_index].Address() + cbuf_offset;
@@ -1639,7 +1639,7 @@ void BufferCache<P>::ChangeRegister(BufferId buffer_id) {
             ++large_buffer_count;
         }
     } else {
-        ASSERT(total_used_memory >= aligned_size);
+        assert(total_used_memory >= aligned_size);
         total_used_memory -= std::min(total_used_memory, aligned_size);
         lru_cache.Free(buffer.getLRUID());
 
@@ -1648,7 +1648,7 @@ void BufferCache<P>::ChangeRegister(BufferId buffer_id) {
             --buffer_count;
         }
         if (is_large && large_buffer_count > 0) {
-            ASSERT(large_buffer_memory >= aligned_size);
+            assert(large_buffer_memory >= aligned_size);
             large_buffer_memory -= std::min(large_buffer_memory, aligned_size);
             --large_buffer_count;
         }
@@ -2050,8 +2050,8 @@ Binding BufferCache<P>::StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
         return NULL_BINDING;
     }
     const std::optional<DAddr> device_addr = gpu_memory->GpuToCpuAddress(gpu_addr);
-    ASSERT_MSG(device_addr, "Unaligned storage buffer address not found for cbuf index {}",
-               cbuf_index);
+    assert(device_addr && "Unaligned storage buffer address not found for cbuf index {}" &&
+           (void(cbuf_index), true));
     // The end address used for size calculation does not need to be aligned
     const DAddr cpu_end = Common::AlignUp(*device_addr + size, Core::DEVICE_PAGESIZE);
 

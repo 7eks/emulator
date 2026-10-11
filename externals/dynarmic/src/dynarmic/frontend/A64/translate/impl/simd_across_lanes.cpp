@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <utility>
+
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
 
 namespace Dynarmic::A64 {
@@ -78,7 +80,7 @@ bool FPMinMax(TranslatorVisitor& v, bool Q, bool sz, Vec Vn, Vec Vd, MinMaxOpera
         case MinMaxOperation::MinNumeric:
             return v.ir.FPMinNumeric(lhs, rhs);
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     };
 
@@ -141,7 +143,7 @@ bool ScalarMinMax(TranslatorVisitor& v, bool Q, Imm<2> size, Vec Vn, Vec Vd, Sca
             return v.ir.MinUnsigned(a, b);
 
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     };
 

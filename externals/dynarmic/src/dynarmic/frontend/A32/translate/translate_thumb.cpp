@@ -6,9 +6,9 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
 #include <tuple>
 
-#include "dynarmic/common/assert.h"
 #include "dynarmic/mcl/bit.hpp"
 
 #include "dynarmic/frontend/A32/a32_ir_emitter.h"
@@ -172,7 +172,7 @@ void TranslateThumb(IR::Block& block, LocationDescriptor descriptor, TranslateCa
             }
         }
     }
-    ASSERT(block.HasTerminal() && "Terminal has not been set");
+    assert(block.HasTerminal() && "Terminal has not been set");
     block.SetEndLocation(visitor.ir.current_location);
 }
 

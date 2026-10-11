@@ -6,7 +6,9 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
 #include <cstdio>
+#include <utility>
 
 #include <bit>
 
@@ -31,7 +33,7 @@ AddressSpace::AddressSpace(std::size_t code_cache_size)
     , code(mem.ptr(), mem.ptr())
     , fastmem_manager(exception_handler)
 {
-    ASSERT(code_cache_size <= 128 * 1024 * 1024 && "code_cache_size > 128 MiB not currently supported");
+    assert(code_cache_size <= 128 * 1024 * 1024 && "code_cache_size > 128 MiB not currently supported");
 
     exception_handler.Register(mem, code_cache_size);
     exception_handler.SetFastmemCallback([this](u64 host_pc) {
@@ -115,9 +117,12 @@ EmittedBlockInfo AddressSpace::Emit(IR::Block block) {
 
     EmittedBlockInfo block_info = EmitArm64(code, std::move(block), GetEmitConfig(), fastmem_manager);
 
-    ASSERT(block_entries.insert({block.Location(), block_info.entry_point}).second);
-    ASSERT(reverse_block_entries.insert({block_info.entry_point, block.Location()}).second);
-    ASSERT(block_infos.insert({block_info.entry_point, block_info}).second);
+    [[maybe_unused]] const auto inserted = block_entries.insert({block.Location(), block_info.entry_point});
+    assert(inserted.second);
+    [[maybe_unused]] const auto inserted_2 = reverse_block_entries.insert({block_info.entry_point, block.Location()});
+    assert(inserted_2.second);
+    [[maybe_unused]] const auto inserted_3 = block_infos.insert({block_info.entry_point, block_info});
+    assert(inserted_3.second);
 
     Link(block_info);
     RelinkForDescriptor(block.Location(), block_info.entry_point);
@@ -260,7 +265,7 @@ void AddressSpace::Link(EmittedBlockInfo& block_info) {
             c.BL(prelude_info.get_ticks_remaining);
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 
@@ -294,7 +299,7 @@ void AddressSpace::LinkBlockLinks(const CodePtr entry_point, const CodePtr targe
             }
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 }
@@ -346,7 +351,7 @@ FakeCall AddressSpace::FastmemCallback(u64 host_pc) {
 fail:
     fmt::print("dynarmic: Segfault happened within JITted code at host_pc = {:016x}\n"
         "Segfault wasn't at a fastmem patch location!\n", host_pc);
-    UNREACHABLE();
+    std::unreachable();
 }
 
 }  // namespace Dynarmic::Backend::Arm64

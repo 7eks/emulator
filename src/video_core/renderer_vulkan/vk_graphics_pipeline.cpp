@@ -373,7 +373,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
             static_assert(Shader::Info::MAX_SSBOS <= VideoCommon::NUM_STORAGE_BUFFERS);
             size_t ssbo_index{};
             for (const auto& desc : info.storage_buffers_descriptors) {
-                ASSERT(desc.count == 1);
+                assert(desc.count == 1);
                 buffer_cache.BindGraphicsStorageBuffer(stage, ssbo_index, desc.cbuf_index,
                                                        desc.cbuf_offset, desc.is_written);
                 ++ssbo_index;
@@ -381,7 +381,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         }
         const auto& cbufs{maxwell3d->state.shader_stages[stage].const_buffers};
         const auto read_handle{[&](const auto& desc, u32 index) {
-            ASSERT(cbufs[desc.cbuf_index].enabled);
+            assert(cbufs[desc.cbuf_index].enabled);
             const u32 index_offset{index << desc.size_shift};
             const u32 offset{desc.cbuf_offset + index_offset};
             const GPUVAddr addr{cbufs[desc.cbuf_index].address + offset};
@@ -397,7 +397,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
                                : 0;
                 }
                 if (desc.has_secondary) {
-                    ASSERT(cbufs[desc.secondary_cbuf_index].enabled);
+                    assert(cbufs[desc.secondary_cbuf_index].enabled);
                     const u32 second_offset{desc.secondary_cbuf_offset + index_offset};
                     const GPUVAddr separate_addr{cbufs[desc.secondary_cbuf_index].address +
                                                  second_offset};
@@ -708,7 +708,7 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
             });
         }
     }
-    ASSERT(vertex_attributes.size() <= device.GetMaxVertexInputAttributes());
+    assert(vertex_attributes.size() <= device.GetMaxVertexInputAttributes());
 
     VkPipelineVertexInputStateCreateInfo vertex_input_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,

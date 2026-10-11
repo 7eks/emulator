@@ -7,13 +7,13 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <limits>
 #include <numeric>
 #include <utility>
 
 #include <fmt/ostream.h>
 #include "dynarmic/backend/x64/hostloc.h"
-#include "dynarmic/common/assert.h"
 #include <bit>
 #include "dynarmic/backend/x64/xbyak.h"
 
@@ -47,7 +47,7 @@ static inline size_t GetBitWidth(const IR::Type type) noexcept {
         return 32;  // TODO: Update to 16 when flags optimization is done
     default:
         // A32REG A32EXTREG A64REG A64VEC COPROCINFO COND VOID TABLE ACCTYPE OPAQUE
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 
@@ -56,11 +56,11 @@ static inline bool IsValuelessType(const IR::Type type) noexcept {
 }
 
 void HostLocInfo::ReleaseOne() noexcept {
-    ASSERT(is_being_used_count > 0);
+    assert(is_being_used_count > 0);
     --is_being_used_count;
     is_scratch = false;
     if (current_references > 0) {
-        ASSERT(size_t(accumulated_uses) + 1 < (std::numeric_limits<decltype(accumulated_uses)>::max)());
+        assert(size_t(accumulated_uses) + 1 < (std::numeric_limits<decltype(accumulated_uses)>::max)());
         ++accumulated_uses;
         --current_references;
         if (current_references == 0)
@@ -69,7 +69,7 @@ void HostLocInfo::ReleaseOne() noexcept {
 }
 
 void HostLocInfo::ReleaseAll() noexcept {
-    ASSERT(size_t(accumulated_uses) + current_references < (std::numeric_limits<decltype(accumulated_uses)>::max)());
+    assert(size_t(accumulated_uses) + current_references < (std::numeric_limits<decltype(accumulated_uses)>::max)());
     accumulated_uses += current_references;
     current_references = 0;
     is_set_last_use = false;
@@ -91,7 +91,7 @@ void HostLocInfo::AddValue(HostLoc loc, IR::Inst* inst) noexcept {
     }
     values.push_back(inst);
 
-    ASSERT(size_t(total_uses) + inst->UseCount() < (std::numeric_limits<decltype(total_uses)>::max)());
+    assert(size_t(total_uses) + inst->UseCount() < (std::numeric_limits<decltype(total_uses)>::max)());
     total_uses += inst->UseCount();
     max_bit_width = std::max<uint8_t>(max_bit_width, std::countr_zero(GetBitWidth(inst->GetType())));
 }
@@ -129,24 +129,24 @@ bool Argument::GetImmediateU1() const noexcept {
 
 u8 Argument::GetImmediateU8() const noexcept {
     const u64 imm = value.GetImmediateAsU64();
-    ASSERT(imm <= u64(std::numeric_limits<u8>::max()));
+    assert(imm <= u64(std::numeric_limits<u8>::max()));
     return u8(imm);
 }
 
 u16 Argument::GetImmediateU16() const noexcept {
     const u64 imm = value.GetImmediateAsU64();
-    ASSERT(imm <= u64(std::numeric_limits<u16>::max()));
+    assert(imm <= u64(std::numeric_limits<u16>::max()));
     return u16(imm);
 }
 
 u32 Argument::GetImmediateU32() const noexcept {
     const u64 imm = value.GetImmediateAsU64();
-    ASSERT(imm <= u64(std::numeric_limits<u32>::max()));
+    assert(imm <= u64(std::numeric_limits<u32>::max()));
     return u32(imm);
 }
 
 u64 Argument::GetImmediateS32() const noexcept {
-    ASSERT(FitsInImmediateS32());
+    assert(FitsInImmediateS32());
     return value.GetImmediateAsU64();
 }
 
@@ -155,12 +155,12 @@ u64 Argument::GetImmediateU64() const noexcept {
 }
 
 IR::Cond Argument::GetImmediateCond() const noexcept {
-    ASSERT(IsImmediate() && GetType() == IR::Type::Cond);
+    assert(IsImmediate() && GetType() == IR::Type::Cond);
     return value.GetCond();
 }
 
 IR::AccType Argument::GetImmediateAccType() const noexcept {
-    ASSERT(IsImmediate() && GetType() == IR::Type::AccType);
+    assert(IsImmediate() && GetType() == IR::Type::AccType);
     return value.GetAccType();
 }
 
@@ -201,7 +201,7 @@ RegAlloc::ArgumentInfo RegAlloc::GetArgumentInfo(const IR::Inst* inst) noexcept 
         ret[i].value = arg;
         if (!arg.IsImmediate() && !IsValuelessType(arg.GetType())) {
             auto const loc = ValueLocation(arg.GetInst());
-            ASSERT(loc && "argument must already been defined");
+            assert(loc && "argument must already been defined");
             LocInfo(*loc).AddArgReference();
         }
     }
@@ -209,7 +209,7 @@ RegAlloc::ArgumentInfo RegAlloc::GetArgumentInfo(const IR::Inst* inst) noexcept 
 }
 
 void RegAlloc::RegisterPseudoOperation(const IR::Inst* inst) noexcept {
-    ASSERT(IsValueLive(inst) || !inst->HasUses());
+    assert(IsValueLive(inst) || !inst->HasUses());
     for (size_t i = 0; i < inst->NumArgs(); i++) {
         auto const arg = inst->GetArg(i);
         if (!arg.IsImmediate() && !IsValuelessType(arg.GetType())) {
@@ -222,37 +222,37 @@ void RegAlloc::RegisterPseudoOperation(const IR::Inst* inst) noexcept {
 }
 
 Xbyak::Reg64 RegAlloc::UseScratchGpr(BlockOfCode& code, Argument& arg) noexcept {
-    ASSERT(!arg.allocated);
+    assert(!arg.allocated);
     arg.allocated = true;
     return HostLocToReg64(UseScratchImpl(code, arg.value, gpr_order));
 }
 
 Xbyak::Xmm RegAlloc::UseScratchXmm(BlockOfCode& code, Argument& arg) noexcept {
-    ASSERT(!arg.allocated);
+    assert(!arg.allocated);
     arg.allocated = true;
     return HostLocToXmm(UseScratchImpl(code, arg.value, xmm_order));
 }
 
 void RegAlloc::UseScratch(BlockOfCode& code, Argument& arg, HostLoc host_loc) noexcept {
-    ASSERT(!arg.allocated);
+    assert(!arg.allocated);
     arg.allocated = true;
     UseScratchImpl(code, arg.value, BuildRegSet({host_loc}));
 }
 
 void RegAlloc::DefineValue(BlockOfCode& code, IR::Inst* inst, const Xbyak::Reg& reg) noexcept {
-    ASSERT(reg.getKind() == Xbyak::Operand::XMM || reg.getKind() == Xbyak::Operand::REG);
+    assert(reg.getKind() == Xbyak::Operand::XMM || reg.getKind() == Xbyak::Operand::REG);
     const auto hostloc = static_cast<HostLoc>(reg.getIdx() + static_cast<size_t>(reg.getKind() == Xbyak::Operand::XMM ? HostLoc::XMM0 : HostLoc::RAX));
     DefineValueImpl(code, inst, hostloc);
 }
 
 void RegAlloc::DefineValue(BlockOfCode& code, IR::Inst* inst, Argument& arg) noexcept {
-    ASSERT(!arg.allocated);
+    assert(!arg.allocated);
     arg.allocated = true;
     DefineValueImpl(code, inst, arg.value);
 }
 
 void RegAlloc::Release(const Xbyak::Reg& reg) noexcept {
-    ASSERT(reg.getKind() == Xbyak::Operand::XMM || reg.getKind() == Xbyak::Operand::REG);
+    assert(reg.getKind() == Xbyak::Operand::XMM || reg.getKind() == Xbyak::Operand::REG);
     const auto hostloc = static_cast<HostLoc>(reg.getIdx() + static_cast<size_t>(reg.getKind() == Xbyak::Operand::XMM ? HostLoc::XMM0 : HostLoc::RAX));
     LocInfo(hostloc).ReleaseOne();
 }
@@ -375,22 +375,22 @@ void RegAlloc::HostCall(
             case IR::Type::U64:
                 break; //no op
             default:
-                UNREACHABLE();
+                std::unreachable();
             }
         }
     }
 }
 
 void RegAlloc::AllocStackSpace(BlockOfCode& code, const size_t stack_space) noexcept {
-    ASSERT(stack_space < size_t((std::numeric_limits<s32>::max)()));
-    ASSERT(reserved_stack_space == 0);
+    assert(stack_space < size_t((std::numeric_limits<s32>::max)()));
+    assert(reserved_stack_space == 0);
     reserved_stack_space = stack_space;
     code.sub(code.rsp, u32(stack_space));
 }
 
 void RegAlloc::ReleaseStackSpace(BlockOfCode& code, const size_t stack_space) noexcept {
-    ASSERT(stack_space < size_t((std::numeric_limits<s32>::max)()));
-    ASSERT(reserved_stack_space == stack_space);
+    assert(stack_space < size_t((std::numeric_limits<s32>::max)()));
+    assert(reserved_stack_space == stack_space);
     reserved_stack_space = 0;
     code.add(code.rsp, u32(stack_space));
 }
@@ -410,7 +410,7 @@ HostLoc RegAlloc::SelectARegister(std::bitset<32> desired_locations) const noexc
     for (HostLoc i = HostLoc(0); i < HostLoc(desired_locations.size()); i = HostLoc(size_t(i) + 1)) {
         if (desired_locations.test(size_t(i))) {
             auto const& loc_info = LocInfo(i);
-            DEBUG_ASSERT(i != ABI_JIT_PTR);
+            assert(i != ABI_JIT_PTR);
             // Abstain from using upper registers unless absolutely nescesary
             if (loc_info.IsLocked()) {
                 // skip, not suitable for allocation
@@ -449,7 +449,7 @@ HostLoc RegAlloc::SelectARegister(std::bitset<32> desired_locations) const noexc
     auto const it_final = it_empty_candidate != HostLoc::FirstSpill
         ? it_empty_candidate : it_candidate != HostLoc::FirstSpill
         ? it_candidate : it_rex_candidate;
-    ASSERT(it_final != HostLoc::FirstSpill && "All candidate registers have already been allocated");
+    assert(it_final != HostLoc::FirstSpill && "All candidate registers have already been allocated");
     // Evil magic - increment LRU counter (will wrap at 256)
     const_cast<RegAlloc*>(this)->LocInfo(HostLoc(it_final)).lru_counter++;
     return HostLoc(it_final);
@@ -466,19 +466,19 @@ std::optional<HostLoc> RegAlloc::ValueLocation(const IR::Inst* value) const noex
 }
 
 void RegAlloc::DefineValueImpl(BlockOfCode& code, IR::Inst* def_inst, HostLoc host_loc) noexcept {
-    ASSERT(!ValueLocation(def_inst) && "def_inst has already been defined");
+    assert(!ValueLocation(def_inst) && "def_inst has already been defined");
     LocInfo(host_loc).AddValue(host_loc, def_inst);
-    ASSERT(*ValueLocation(def_inst) == host_loc);
+    assert(*ValueLocation(def_inst) == host_loc);
 }
 
 void RegAlloc::DefineValueImpl(BlockOfCode& code, IR::Inst* def_inst, const IR::Value& use_inst) noexcept {
-    ASSERT(!ValueLocation(def_inst) && "def_inst has already been defined");
+    assert(!ValueLocation(def_inst) && "def_inst has already been defined");
     if (use_inst.IsImmediate()) {
         const HostLoc location = ScratchImpl(code, gpr_order);
         DefineValueImpl(code, def_inst, location);
         LoadImmediate(code, use_inst, location);
     } else {
-        ASSERT(ValueLocation(use_inst.GetInst()) && "use_inst must already be defined");
+        assert(ValueLocation(use_inst.GetInst()) && "use_inst must already be defined");
         const HostLoc location = *ValueLocation(use_inst.GetInst());
         DefineValueImpl(code, def_inst, location);
     }
@@ -486,22 +486,22 @@ void RegAlloc::DefineValueImpl(BlockOfCode& code, IR::Inst* def_inst, const IR::
 
 void RegAlloc::Move(BlockOfCode& code, HostLoc to, HostLoc from) noexcept {
     const size_t bit_width = LocInfo(from).GetMaxBitWidth();
-    ASSERT(LocInfo(to).IsEmpty() && !LocInfo(from).IsLocked());
-    ASSERT(bit_width <= HostLocBitWidth(to));
-    ASSERT(!LocInfo(from).IsEmpty() && "Mov eliminated");
+    assert(LocInfo(to).IsEmpty() && !LocInfo(from).IsLocked());
+    assert(bit_width <= HostLocBitWidth(to));
+    assert(!LocInfo(from).IsEmpty() && "Mov eliminated");
     EmitMove(code, bit_width, to, from);
     LocInfo(to) = std::exchange(LocInfo(from), {});
 }
 
 void RegAlloc::CopyToScratch(BlockOfCode& code, size_t bit_width, HostLoc to, HostLoc from) noexcept {
-    ASSERT(LocInfo(to).IsEmpty() && !LocInfo(from).IsEmpty());
+    assert(LocInfo(to).IsEmpty() && !LocInfo(from).IsEmpty());
     EmitMove(code, bit_width, to, from);
 }
 
 void RegAlloc::Exchange(BlockOfCode& code, HostLoc a, HostLoc b) noexcept {
-    ASSERT(!LocInfo(a).IsLocked() && !LocInfo(b).IsLocked());
-    ASSERT(LocInfo(a).GetMaxBitWidth() <= HostLocBitWidth(b));
-    ASSERT(LocInfo(b).GetMaxBitWidth() <= HostLocBitWidth(a));
+    assert(!LocInfo(a).IsLocked() && !LocInfo(b).IsLocked());
+    assert(LocInfo(a).GetMaxBitWidth() <= HostLocBitWidth(b));
+    assert(LocInfo(b).GetMaxBitWidth() <= HostLocBitWidth(a));
 
     if (LocInfo(a).IsEmpty()) {
         Move(code, a, b);
@@ -514,16 +514,16 @@ void RegAlloc::Exchange(BlockOfCode& code, HostLoc a, HostLoc b) noexcept {
 }
 
 void RegAlloc::MoveOutOfTheWay(BlockOfCode& code, HostLoc reg) noexcept {
-    ASSERT(!LocInfo(reg).IsLocked());
+    assert(!LocInfo(reg).IsLocked());
     if (!LocInfo(reg).IsEmpty()) {
         SpillRegister(code, reg);
     }
 }
 
 void RegAlloc::SpillRegister(BlockOfCode& code, HostLoc loc) noexcept {
-    ASSERT(HostLocIsRegister(loc) && "Only registers can be spilled");
-    ASSERT(!LocInfo(loc).IsEmpty() && "There is no need to spill unoccupied registers");
-    ASSERT(!LocInfo(loc).IsLocked() && "Registers that have been allocated must not be spilt");
+    assert(HostLocIsRegister(loc) && "Only registers can be spilled");
+    assert(!LocInfo(loc).IsEmpty() && "There is no need to spill unoccupied registers");
+    assert(!LocInfo(loc).IsLocked() && "Registers that have been allocated must not be spilt");
     auto const new_loc = FindFreeSpill(HostLocIsXMM(loc));
     Move(code, new_loc, loc);
 }
@@ -549,7 +549,7 @@ HostLoc RegAlloc::FindFreeSpill(bool is_xmm) const noexcept {
     for (size_t i = size_t(HostLoc::FirstSpill); i < hostloc_info.size(); ++i)
         if (const auto loc = HostLoc(i); LocInfo(loc).IsEmpty())
             return loc;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 #define MAYBE_AVX(OPCODE, ...) \
@@ -559,7 +559,7 @@ HostLoc RegAlloc::FindFreeSpill(bool is_xmm) const noexcept {
     }()
 
 HostLoc RegAlloc::LoadImmediate(BlockOfCode& code, IR::Value imm, HostLoc host_loc) noexcept {
-    ASSERT(imm.IsImmediate() && "imm is not an immediate");
+    assert(imm.IsImmediate() && "imm is not an immediate");
     if (HostLocIsGPR(host_loc)) {
         const Xbyak::Reg64 reg = HostLocToReg64(host_loc);
         const u64 imm_value = imm.GetImmediateAsU64();
@@ -577,16 +577,16 @@ HostLoc RegAlloc::LoadImmediate(BlockOfCode& code, IR::Value imm, HostLoc host_l
             MAYBE_AVX(movaps, reg, code.Const(code.xword, imm_value));
         }
     } else {
-        UNREACHABLE();
+        std::unreachable();
     }
     return host_loc;
 }
 
 void RegAlloc::EmitMove(BlockOfCode& code, const size_t bit_width, const HostLoc to, const HostLoc from) noexcept {
     auto const spill_to_op_arg_helper = [&](HostLoc loc, size_t reserved_stack_space) {
-        ASSERT(HostLocIsSpill(loc));
+        assert(HostLocIsSpill(loc));
         size_t i = size_t(loc) - size_t(HostLoc::FirstSpill);
-        ASSERT(i < SpillCount && "Spill index greater than number of available spill locations");
+        assert(i < SpillCount && "Spill index greater than number of available spill locations");
         return Xbyak::util::rsp + reserved_stack_space + ABI_SHADOW_SPACE + offsetof(StackLayout, spill) + i * sizeof(StackLayout::spill[0]);
     };
     auto const spill_xmm_to_op = [&](const HostLoc loc) {
@@ -595,21 +595,21 @@ void RegAlloc::EmitMove(BlockOfCode& code, const size_t bit_width, const HostLoc
     if (HostLocIsXMM(to) && HostLocIsXMM(from)) {
         MAYBE_AVX(movaps, HostLocToXmm(to), HostLocToXmm(from));
     } else if (HostLocIsGPR(to) && HostLocIsGPR(from)) {
-        ASSERT(bit_width != 128);
+        assert(bit_width != 128);
         if (bit_width == 64) {
             code.mov(HostLocToReg64(to), HostLocToReg64(from));
         } else {
             code.mov(HostLocToReg64(to).cvt32(), HostLocToReg64(from).cvt32());
         }
     } else if (HostLocIsXMM(to) && HostLocIsGPR(from)) {
-        ASSERT(bit_width != 128);
+        assert(bit_width != 128);
         if (bit_width == 64) {
             MAYBE_AVX(movq, HostLocToXmm(to), HostLocToReg64(from));
         } else {
             MAYBE_AVX(movd, HostLocToXmm(to), HostLocToReg64(from).cvt32());
         }
     } else if (HostLocIsGPR(to) && HostLocIsXMM(from)) {
-        ASSERT(bit_width != 128);
+        assert(bit_width != 128);
         if (bit_width == 64) {
             MAYBE_AVX(movq, HostLocToReg64(to), HostLocToXmm(from));
         } else {
@@ -617,7 +617,7 @@ void RegAlloc::EmitMove(BlockOfCode& code, const size_t bit_width, const HostLoc
         }
     } else if (HostLocIsXMM(to) && HostLocIsSpill(from)) {
         const Xbyak::Address spill_addr = spill_xmm_to_op(from);
-        ASSERT(spill_addr.getBit() >= bit_width);
+        assert(spill_addr.getBit() >= bit_width);
         switch (bit_width) {
         case 128:
             MAYBE_AVX(movaps, HostLocToXmm(to), spill_addr);
@@ -631,11 +631,11 @@ void RegAlloc::EmitMove(BlockOfCode& code, const size_t bit_width, const HostLoc
             MAYBE_AVX(movss, HostLocToXmm(to), spill_addr);
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     } else if (HostLocIsSpill(to) && HostLocIsXMM(from)) {
         const Xbyak::Address spill_addr = spill_xmm_to_op(to);
-        ASSERT(spill_addr.getBit() >= bit_width);
+        assert(spill_addr.getBit() >= bit_width);
         switch (bit_width) {
         case 128:
             MAYBE_AVX(movaps, spill_addr, HostLocToXmm(from));
@@ -649,30 +649,30 @@ void RegAlloc::EmitMove(BlockOfCode& code, const size_t bit_width, const HostLoc
             MAYBE_AVX(movss, spill_addr, HostLocToXmm(from));
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     } else if (HostLocIsGPR(to) && HostLocIsSpill(from)) {
-        ASSERT(bit_width != 128);
+        assert(bit_width != 128);
         if (bit_width == 64) {
             code.mov(HostLocToReg64(to), Xbyak::util::qword[spill_to_op_arg_helper(from, reserved_stack_space)]);
         } else {
             code.mov(HostLocToReg64(to).cvt32(), Xbyak::util::dword[spill_to_op_arg_helper(from, reserved_stack_space)]);
         }
     } else if (HostLocIsSpill(to) && HostLocIsGPR(from)) {
-        ASSERT(bit_width != 128);
+        assert(bit_width != 128);
         if (bit_width == 64) {
             code.mov(Xbyak::util::qword[spill_to_op_arg_helper(to, reserved_stack_space)], HostLocToReg64(from));
         } else {
             code.mov(Xbyak::util::dword[spill_to_op_arg_helper(to, reserved_stack_space)], HostLocToReg64(from).cvt32());
         }
     } else {
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 #undef MAYBE_AVX
 
 void RegAlloc::EmitExchange(BlockOfCode& code, const HostLoc a, const HostLoc b) noexcept {
-    ASSERT(HostLocIsGPR(a) && HostLocIsGPR(b) && "Exchanging XMM registers is uneeded OR invalid emit");
+    assert(HostLocIsGPR(a) && HostLocIsGPR(b) && "Exchanging XMM registers is uneeded OR invalid emit");
     code.xchg(HostLocToReg64(a), HostLocToReg64(b));
 }
 

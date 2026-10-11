@@ -11,7 +11,6 @@
 #include "dynarmic/backend/loongarch64/lagoon_cpp.h"
 #include "dynarmic/common/container/unordered_map.h"
 
-#include "dynarmic/common/assert.h"
 #include "dynarmic/common/common_types.h"
 #include "dynarmic/mcl/is_instance_of_template.hpp"
 

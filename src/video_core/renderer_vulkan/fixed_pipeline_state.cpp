@@ -476,7 +476,7 @@ Tegra::Engines::Maxwell3D::Regs::Blend::Factor FixedPipelineState::UnpackBlendFa
         Tegra::Engines::Maxwell3D::Regs::Blend::Factor::BothSourceAlpha_D3D,
         Tegra::Engines::Maxwell3D::Regs::Blend::Factor::OneMinusBothSourceAlpha_D3D,
     };
-    ASSERT(packed < LUT.size());
+    assert(packed < LUT.size());
     return LUT[packed];
 }
 

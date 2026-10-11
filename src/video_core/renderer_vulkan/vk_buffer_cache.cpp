@@ -53,7 +53,7 @@ size_t BytesPerIndex(VkIndexType index_type) {
     case VK_INDEX_TYPE_UINT32:
         return 4;
     default:
-        ASSERT_MSG(false, "Invalid index type={}", index_type);
+        assert(false && "Invalid index type={}" && (void(index_type), true));
         return 1;
     }
 }
@@ -292,7 +292,7 @@ private:
             std::memcpy(staging_data, MakeIndices<u32>(quad, first).data(), quad_size);
             break;
         default:
-            ASSERT(false);
+            assert(false);
             break;
         }
     }
@@ -332,7 +332,7 @@ private:
             std::memcpy(staging_data, MakeIndices<u32>(quad, first).data(), quad_size);
             break;
         default:
-            ASSERT(false);
+            assert(false);
             break;
         }
     }

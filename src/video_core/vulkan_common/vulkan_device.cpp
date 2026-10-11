@@ -1042,7 +1042,7 @@ bool Device::GetSuitability(bool requires_swapchain) {
     instance_version = properties.properties.apiVersion;
 
     // Minimum of API version 1.1 is required. (This is well-supported.)
-    ASSERT(instance_version >= VK_API_VERSION_1_1);
+    assert(instance_version >= VK_API_VERSION_1_1);
 
     // Get available extensions.
     auto extension_properties = physical.EnumerateDeviceExtensionProperties();

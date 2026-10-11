@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <utility>
+
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
 
 namespace Dynarmic::A64 {
@@ -27,7 +29,7 @@ bool TranslatorVisitor::SCVTF_float_fix(bool sf, Imm<2> type, Imm<6> scale, Reg 
         case 64:
             return ir.FPSignedFixedToDouble(intval, fracbits, rounding_mode);
         }
-        UNREACHABLE();
+        std::unreachable();
     }();
 
     V_scalar(*fltsize, Vd, fltval);
@@ -54,7 +56,7 @@ bool TranslatorVisitor::UCVTF_float_fix(bool sf, Imm<2> type, Imm<6> scale, Reg 
         case 64:
             return ir.FPUnsignedFixedToDouble(intval, fracbits, rounding_mode);
         }
-        UNREACHABLE();
+        std::unreachable();
     }();
 
     V_scalar(*fltsize, Vd, fltval);
@@ -79,7 +81,7 @@ bool TranslatorVisitor::FCVTZS_float_fix(bool sf, Imm<2> type, Imm<6> scale, Vec
     } else if (intsize == 64) {
         intval = ir.FPToFixedS64(fltval, fracbits, FP::RoundingMode::TowardsZero);
     } else {
-        UNREACHABLE();
+        std::unreachable();
     }
 
     X(intsize, Rd, intval);
@@ -104,7 +106,7 @@ bool TranslatorVisitor::FCVTZU_float_fix(bool sf, Imm<2> type, Imm<6> scale, Vec
     } else if (intsize == 64) {
         intval = ir.FPToFixedU64(fltval, fracbits, FP::RoundingMode::TowardsZero);
     } else {
-        UNREACHABLE();
+        std::unreachable();
     }
 
     X(intsize, Rd, intval);

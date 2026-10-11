@@ -8,7 +8,8 @@
 
 #include "dynarmic/frontend/A32/translate/impl/a32_translate_impl.h"
 
-#include "dynarmic/common/assert.h"
+#include <cassert>
+#include <utility>
 
 #include "dynarmic/interface/A32/config.h"
 
@@ -29,7 +30,7 @@ bool TranslatorVisitor::ThumbConditionPassed() {
 
 bool TranslatorVisitor::VFPConditionPassed(Cond cond) {
     if (ir.current_location.TFlag()) {
-        ASSERT(cond == Cond::AL);
+        assert(cond == Cond::AL);
         return true;
     }
     return ArmConditionPassed(cond);
@@ -66,7 +67,7 @@ IR::UAny TranslatorVisitor::I(size_t bitsize, u64 value) {
     case 64:
         return ir.Imm64(value);
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 
@@ -92,7 +93,7 @@ IR::ResultAndCarry<IR::U32> TranslatorVisitor::EmitImmShift(IR::U32 value, Shift
             return ir.RotateRightExtended(value, carry_in);
         }
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 IR::ResultAndCarry<IR::U32> TranslatorVisitor::EmitRegShift(IR::U32 value, ShiftType type, IR::U8 amount, IR::U1 carry_in) {
@@ -106,7 +107,7 @@ IR::ResultAndCarry<IR::U32> TranslatorVisitor::EmitRegShift(IR::U32 value, Shift
     case ShiftType::ROR:
         return ir.RotateRight(value, amount, carry_in);
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 
 }  // namespace Dynarmic::A32

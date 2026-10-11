@@ -6,13 +6,13 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
 #include <functional>
 #include <memory>
 #include <mutex>
 
 #include <boost/icl/interval_set.hpp>
 #include <fmt/format.h>
-#include "dynarmic/common/assert.h"
 #include <bit>
 #include "dynarmic/common/common_types.h"
 #include "dynarmic/common/llvm_disassemble.h"
@@ -74,7 +74,7 @@ struct Jit::Impl {
     ~Impl() = default;
 
     HaltReason Run() {
-        ASSERT(!jit_interface->is_executing);
+        assert(!jit_interface->is_executing);
         PerformRequestedCacheInvalidation(static_cast<HaltReason>(Atomic::Load(&jit_state.halt_reason)));
         jit_interface->is_executing = true;
         const CodePtr current_codeptr = [this] {
@@ -94,7 +94,7 @@ struct Jit::Impl {
     }
 
     HaltReason Step() {
-        ASSERT(!jit_interface->is_executing);
+        assert(!jit_interface->is_executing);
         PerformRequestedCacheInvalidation(static_cast<HaltReason>(Atomic::Load(&jit_state.halt_reason)));
         jit_interface->is_executing = true;
         const HaltReason hr = block_of_code.StepCode(&jit_state, GetCurrentSingleStep());
@@ -116,7 +116,7 @@ struct Jit::Impl {
     }
 
     void Reset() {
-        ASSERT(!jit_interface->is_executing);
+        assert(!jit_interface->is_executing);
         jit_state = {};
     }
 

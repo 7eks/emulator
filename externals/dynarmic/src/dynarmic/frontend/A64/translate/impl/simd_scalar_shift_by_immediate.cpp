@@ -6,6 +6,9 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cassert>
+#include <utility>
+
 #include "dynarmic/mcl/bit.hpp"
 
 #include "dynarmic/common/fp/rounding_mode.h"
@@ -198,10 +201,10 @@ bool ShiftRightNarrowing(TranslatorVisitor& v, Imm<4> immh, Imm<3> immb, Vec Vn,
             }
             return v.ir.VectorUnsignedSaturatedNarrow(source_esize, wide_result);
         case Narrowing::SaturateToSigned:
-            ASSERT(SignednessSSSBI == SignednessSSSBI::Signed);
+            assert(SignednessSSSBI == SignednessSSSBI::Signed);
             return v.ir.VectorSignedSaturatedNarrowToSigned(source_esize, wide_result);
         }
-        UNREACHABLE();
+        std::unreachable();
     }();
 
     const IR::UAny segment = v.ir.VectorGetElement(esize, result, 0);
@@ -251,7 +254,7 @@ bool ScalarFPConvertWithRound(TranslatorVisitor& v, Imm<4> immh, Imm<3> immb, Ve
                      : v.ir.FPUnsignedFixedToSingle(operand, fbits, rounding_mode);
         }
 
-        UNREACHABLE();
+        std::unreachable();
     }();
 
     v.V_scalar(esize, Vd, result);

@@ -12,6 +12,7 @@
 #include <functional>
 #include <memory>
 #include <type_traits>
+#include <utility>
 
 #include "dynarmic/common/common_types.h"
 #include "dynarmic/mcl/bit.hpp"
@@ -109,7 +110,7 @@ public:
         case 64:
             return;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 

@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <utility>
+
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
 
 namespace Dynarmic::A64 {
@@ -158,7 +160,7 @@ bool FPCompareRegister(TranslatorVisitor& v, bool Q, bool sz, Vec Vm, Vec Vn, Ve
                                         v.ir.FPVectorAbs(esize, operand2));
         }
 
-        UNREACHABLE();
+        std::unreachable();
     }();
 
     v.V(datasize, Vd, result);
@@ -195,7 +197,7 @@ bool VectorMinMaxOperationSTS(TranslatorVisitor& v, bool Q, Imm<2> size, Vec Vm,
             return v.ir.VectorMinUnsigned(esize, operand1, operand2);
 
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }();
 
@@ -272,7 +274,7 @@ bool PairedMinMaxOperationSTS(TranslatorVisitor& v, bool Q, Imm<2> size, Vec Vm,
             return Q ? v.ir.VectorPairedMinUnsigned(esize, operand1, operand2) : v.ir.VectorPairedMinUnsignedLower(esize, operand1, operand2);
 
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }();
 

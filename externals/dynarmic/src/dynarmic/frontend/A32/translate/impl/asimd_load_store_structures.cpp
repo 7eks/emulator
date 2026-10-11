@@ -8,6 +8,7 @@
 
 #include <optional>
 #include <tuple>
+#include <utility>
 
 #include "dynarmic/mcl/bit.hpp"
 
@@ -72,7 +73,7 @@ std::optional<std::tuple<size_t, size_t, size_t>> DecodeType(Imm<4> type, size_t
         }
         return std::tuple<size_t, size_t, size_t>{4, 1, 2};
     }
-    UNREACHABLE();
+    std::unreachable();
 }
 }  // namespace
 

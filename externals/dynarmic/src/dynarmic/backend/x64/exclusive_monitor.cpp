@@ -10,8 +10,6 @@
 
 #include <algorithm>
 
-#include "dynarmic/common/assert.h"
-
 namespace Dynarmic {
 
 ExclusiveMonitor::ExclusiveMonitor(std::size_t processor_count)

@@ -9,6 +9,8 @@
 #pragma once
 
 #include <bit>
+#include <cassert>
+#include <utility>
 #include "dynarmic/backend/x64/xbyak.h"
 
 #include "dynarmic/backend/x64/a32_emit_x64.h"
@@ -45,7 +47,7 @@ void EmitDetectMisalignedVAddr(BlockOfCode& code, EmitContext& ctx, size_t bitsi
         case 128:
             return 0b1111;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }();
 
@@ -134,7 +136,7 @@ template<>
             code.and_(tmp, u32((1 << valid_page_index_bits) - 1));
         }
     } else {
-        ASSERT(valid_page_index_bits < 32);
+        assert(valid_page_index_bits < 32);
         code.mov(tmp, vaddr);
         code.shr(tmp, int(page_table_const_bits));
         code.test(tmp, u32(-(1 << valid_page_index_bits)));
@@ -247,7 +249,7 @@ const void* EmitReadMemoryMov(BlockOfCode& code, int value_idx, const Xbyak::Reg
             }
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
         return fastmem_location;
     } else {
@@ -269,7 +271,7 @@ const void* EmitReadMemoryMov(BlockOfCode& code, int value_idx, const Xbyak::Reg
             code.movups(Xbyak::Xmm(value_idx), xword[addr]);
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
         return fastmem_location;
     }
@@ -315,7 +317,7 @@ const void* EmitWriteMemoryMov(BlockOfCode& code, const Xbyak::RegExp& addr, int
             break;
         }
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
         return fastmem_location;
     } else {
@@ -337,7 +339,7 @@ const void* EmitWriteMemoryMov(BlockOfCode& code, const Xbyak::RegExp& addr, int
             code.movups(xword[addr], Xbyak::Xmm(value_idx));
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
         return fastmem_location;
     }

@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <utility>
+
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
 
 namespace Dynarmic::A64 {
@@ -67,7 +69,7 @@ static bool RegSharedDecodeAndOperation(TranslatorVisitor& v, size_t scale, u8 s
         // TODO: Prefetch
         break;
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 
     return true;
@@ -125,7 +127,7 @@ static bool VecSharedDecodeAndOperation(TranslatorVisitor& v, size_t scale, u8 s
         break;
     }
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 
     return true;

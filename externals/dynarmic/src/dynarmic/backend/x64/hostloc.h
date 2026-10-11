@@ -8,7 +8,8 @@
 #pragma once
 
 #include <bitset>
-#include "dynarmic/common/assert.h"
+#include <cassert>
+#include <utility>
 #include "dynarmic/common/common_types.h"
 #include "dynarmic/backend/x64/xbyak.h"
 
@@ -78,12 +79,12 @@ constexpr bool HostLocIsFlag(HostLoc reg) {
 }
 
 constexpr HostLoc HostLocRegIdx(int idx) {
-    ASSERT(idx >= 0 && idx <= 15);
+    assert(idx >= 0 && idx <= 15);
     return HostLoc(idx);
 }
 
 constexpr HostLoc HostLocXmmIdx(int idx) {
-    ASSERT(idx >= 0 && idx <= 15);
+    assert(idx >= 0 && idx <= 15);
     return HostLoc(size_t(HostLoc::XMM0) + idx);
 }
 
@@ -104,7 +105,7 @@ constexpr size_t HostLocBitWidth(HostLoc loc) {
         return 128;
     else if (HostLocIsFlag(loc))
         return 1;
-    UNREACHABLE();
+    std::unreachable();
 }
 
 constexpr std::bitset<32> BuildRegSet(std::initializer_list<HostLoc> regs) {
@@ -159,12 +160,12 @@ const std::bitset<32> any_xmm = BuildRegSet({
 });
 
 inline Xbyak::Reg64 HostLocToReg64(HostLoc loc) noexcept {
-    ASSERT(HostLocIsGPR(loc));
+    assert(HostLocIsGPR(loc));
     return Xbyak::Reg64(int(loc));
 }
 
 inline Xbyak::Xmm HostLocToXmm(HostLoc loc) noexcept {
-    ASSERT(HostLocIsXMM(loc));
+    assert(HostLocIsXMM(loc));
     return Xbyak::Xmm(int(loc) - int(HostLoc::XMM0));
 }
 

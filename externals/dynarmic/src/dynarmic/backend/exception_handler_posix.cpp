@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <cassert>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -21,7 +22,6 @@
 #include <fmt/format.h>
 #include <sys/mman.h>
 
-#include "dynarmic/common/assert.h"
 #include "common/logging.h"
 #include "dynarmic/common/common_types.h"
 #include "dynarmic/backend/exception_handler.h"
@@ -121,7 +121,7 @@ void SigHandler::RegisterHandler() {
 }
 
 void SigHandler::SigAction(int sig, siginfo_t* info, void* raw_context) {
-    DEBUG_ASSERT(sig == SIGSEGV || sig == SIGBUS);
+    assert(sig == SIGSEGV || sig == SIGBUS);
     CTX_DECLARE(raw_context);
     {
         std::shared_lock guard(sig_handler->code_block_infos_mutex);
@@ -138,7 +138,7 @@ void SigHandler::SigAction(int sig, siginfo_t* info, void* raw_context) {
 #elif defined(ARCHITECTURE_loongarch64)
             CTX_PC = fc.call_pc;
 #else
-            ASSERT(false);
+            assert(false);
 #endif
             return;
         }

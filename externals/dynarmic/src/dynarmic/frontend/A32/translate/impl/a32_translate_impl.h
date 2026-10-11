@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include "dynarmic/common/assert.h"
+#include <utility>
+
 #include "dynarmic/mcl/bit.hpp"
 
 #include "dynarmic/frontend/A32/a32_ir_emitter.h"
@@ -77,7 +78,7 @@ struct TranslatorVisitor final {
                 case 0b11:
                     return mcl::bit::replicate_element<u8, u32>(imm8);
                 }
-                UNREACHABLE();
+                std::unreachable();
             }();
             return {imm32, carry_in};
         }

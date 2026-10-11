@@ -7,12 +7,12 @@
  */
 
 #include <array>
+#include <cassert>
 #include <limits>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
-#include "dynarmic/common/assert.h"
 #include "dynarmic/mcl/function_info.hpp"
 #include "dynarmic/mcl/integer_of_size.hpp"
 #include "dynarmic/backend/x64/xbyak.h"
@@ -249,7 +249,7 @@ struct PairedIndexer {
         case 1:
             return std::make_tuple(b[2 * i], b[2 * i + 1]);
         }
-        UNREACHABLE();
+        std::unreachable();
     }
 };
 
@@ -272,7 +272,7 @@ struct PairedLowerIndexer {
             }
             return std::make_tuple(0, 0);
         } else {
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 };
@@ -665,7 +665,7 @@ void EmitX64::EmitFPVectorFromHalf32(EmitContext& ctx, IR::Inst* inst) {
             EmitTwoOpFallback<2>(code, ctx, inst, EmitFPVectorFromHalf32Thunk<FP::RoundingMode::ToNearest_TieAwayFromZero>);
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 }
@@ -676,7 +676,7 @@ void EmitX64::EmitFPVectorFromSignedFixed32(EmitContext& ctx, IR::Inst* inst) {
     const int fbits = args[1].GetImmediateU8();
     const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8());
     const bool fpcr_controlled = args[3].GetImmediateU1();
-    ASSERT(rounding_mode == ctx.FPCR(fpcr_controlled).RMode());
+    assert(rounding_mode == ctx.FPCR(fpcr_controlled).RMode());
 
     MaybeStandardFPSCRValue(code, ctx, fpcr_controlled, [&] {
         code.cvtdq2ps(xmm, xmm);
@@ -694,7 +694,7 @@ void EmitX64::EmitFPVectorFromSignedFixed64(EmitContext& ctx, IR::Inst* inst) {
     const int fbits = args[1].GetImmediateU8();
     const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8());
     const bool fpcr_controlled = args[3].GetImmediateU1();
-    ASSERT(rounding_mode == ctx.FPCR(fpcr_controlled).RMode());
+    assert(rounding_mode == ctx.FPCR(fpcr_controlled).RMode());
 
     MaybeStandardFPSCRValue(code, ctx, fpcr_controlled, [&] {
         if (code.HasHostFeature(HostFeature::AVX512_OrthoFloat)) {
@@ -745,7 +745,7 @@ void EmitX64::EmitFPVectorFromUnsignedFixed32(EmitContext& ctx, IR::Inst* inst) 
     const int fbits = args[1].GetImmediateU8();
     const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8());
     const bool fpcr_controlled = args[3].GetImmediateU1();
-    ASSERT(rounding_mode == ctx.FPCR(fpcr_controlled).RMode());
+    assert(rounding_mode == ctx.FPCR(fpcr_controlled).RMode());
 
     MaybeStandardFPSCRValue(code, ctx, fpcr_controlled, [&] {
         if (code.HasHostFeature(HostFeature::AVX512_Ortho)) {
@@ -795,7 +795,7 @@ void EmitX64::EmitFPVectorFromUnsignedFixed64(EmitContext& ctx, IR::Inst* inst) 
     const int fbits = args[1].GetImmediateU8();
     const FP::RoundingMode rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8());
     const bool fpcr_controlled = args[3].GetImmediateU1();
-    ASSERT(rounding_mode == ctx.FPCR(fpcr_controlled).RMode());
+    assert(rounding_mode == ctx.FPCR(fpcr_controlled).RMode());
 
     MaybeStandardFPSCRValue(code, ctx, fpcr_controlled, [&] {
         if (code.HasHostFeature(HostFeature::AVX512_OrthoFloat)) {
@@ -1694,7 +1694,7 @@ void EmitFPVectorRoundInt(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
             : EmitTwoOpFallback<3>(code, ctx, inst, EmitFPVectorRoundIntThunk<FPT, FP::RoundingMode::ToNearest_TieAwayFromZero, false>);
         break;
     default:
-        UNREACHABLE();
+        std::unreachable();
     }
 }
 
@@ -1962,7 +1962,7 @@ void EmitX64::EmitFPVectorToHalf32(EmitContext& ctx, IR::Inst* inst) {
             EmitTwoOpFallback<2>(code, ctx, inst, EmitFPVectorToHalf32Thunk<FP::RoundingMode::ToNearest_TieAwayFromZero>);
             break;
         default:
-            UNREACHABLE();
+            std::unreachable();
         }
     }
 }

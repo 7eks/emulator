@@ -8,6 +8,8 @@
 
 #include "dynarmic/frontend/A64/translate/a64_translate.h"
 
+#include <cassert>
+
 #include "dynarmic/frontend/A64/a64_location_descriptor.h"
 #include "dynarmic/frontend/A64/decoder/a64.h"
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
@@ -39,7 +41,7 @@ void Translate(IR::Block& block, LocationDescriptor descriptor, MemoryReadCodeFu
     if (single_step && should_continue) {
         visitor.ir.SetTerm(IR::Term::LinkBlock{*visitor.ir.current_location});
     }
-    ASSERT(block.HasTerminal() && "Terminal has not been set");
+    assert(block.HasTerminal() && "Terminal has not been set");
     block.SetEndLocation(*visitor.ir.current_location);
 }
 

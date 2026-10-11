@@ -22,7 +22,6 @@ add_library(common STATIC
     algorithm.h
     alignment.h
     announce_multiplayer_room.h
-    assert.cpp
     assert.h
     atomic_ops.h
     bit_field.h

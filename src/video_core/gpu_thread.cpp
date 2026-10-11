@@ -75,7 +75,7 @@ static void RunThread(std::stop_token stop_token, Core::System& system, VideoCor
                     // The command's fence is signaled below after all earlier queue entries are
                     // processed.
                 } else {
-                    ASSERT(false);
+                    assert(false);
                 }
                 if (have_command && scheduler.HasSuspendedChannels()) {
                     // Also between commands, so a busy queue cannot starve a stopped channel.
