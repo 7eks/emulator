@@ -124,6 +124,8 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
 
     buffer_cache.SetComputeUniformBufferState(info.constant_buffer_mask, &uniform_buffer_sizes);
     buffer_cache.UnbindComputeStorageBuffers();
+    // Every descriptor below needs a binding slot; a missing slot shifts the descriptor payload.
+    static_assert(Shader::Info::MAX_SSBOS <= VideoCommon::NUM_STORAGE_BUFFERS);
     size_t ssbo_index{};
     for (const auto& desc : info.storage_buffers_descriptors) {
         ASSERT(desc.count == 1);

@@ -52,7 +52,9 @@ constexpr u64 MAX_PADDED_VERTEX_BUFFER_SIZE = 1_MiB;
 constexpr u32 NUM_TRANSFORM_FEEDBACK_BUFFERS = 4;
 constexpr u32 NUM_GRAPHICS_UNIFORM_BUFFERS = 18;
 constexpr u32 NUM_COMPUTE_UNIFORM_BUFFERS = 8;
-constexpr u32 NUM_STORAGE_BUFFERS = 16;
+// Must hold every storage buffer a shader can declare (Shader::Info::MAX_SSBOS, checked where
+// pipelines bind them). The enabled and written masks are u32, so 32 is also their limit.
+constexpr u32 NUM_STORAGE_BUFFERS = 32;
 constexpr u32 NUM_TEXTURE_BUFFERS = 32;
 constexpr u32 NUM_STAGES = 5;
 

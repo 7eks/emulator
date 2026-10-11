@@ -368,6 +368,9 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         const Shader::Info& info{stage_infos[stage]};
         buffer_cache.UnbindGraphicsStorageBuffers(stage);
         if constexpr (Spec::has_storage_buffers) {
+            // Every descriptor below needs a binding slot; a missing slot shifts the descriptor
+            // payload and writes past the binding array.
+            static_assert(Shader::Info::MAX_SSBOS <= VideoCommon::NUM_STORAGE_BUFFERS);
             size_t ssbo_index{};
             for (const auto& desc : info.storage_buffers_descriptors) {
                 ASSERT(desc.count == 1);
