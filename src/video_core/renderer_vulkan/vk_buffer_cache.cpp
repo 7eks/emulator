@@ -82,6 +82,11 @@ vk::Buffer CreateBuffer(const Device& device, const MemoryAllocator& memory_allo
         .queueFamilyIndexCount = 0,
         .pQueueFamilyIndices = nullptr,
     };
+    // On unified memory the cache writes guest data straight into the buffer when the GPU is
+    // done with it (BufferCache::MappedUploadMemory); otherwise uploads go through staging.
+    if (vk::Buffer unified = memory_allocator.CreateUnifiedBuffer(buffer_ci)) {
+        return unified;
+    }
     return memory_allocator.CreateBuffer(buffer_ci, MemoryUsage::DeviceLocal);
 }
 
@@ -391,6 +396,14 @@ bool BufferCacheRuntime::CanReportMemoryUsage() const {
 
 u32 BufferCacheRuntime::GetStorageBufferAlignment() const {
     return static_cast<u32>(device.GetStorageBufferAlignment());
+}
+
+u64 BufferCacheRuntime::CurrentTick() const noexcept {
+    return scheduler.CurrentTick();
+}
+
+u64 BufferCacheRuntime::KnownGpuTick() const noexcept {
+    return scheduler.GetMasterSemaphore().KnownGpuTick();
 }
 
 void BufferCacheRuntime::TickFrame(Common::SlotVector<Buffer>& slot_buffers) noexcept {

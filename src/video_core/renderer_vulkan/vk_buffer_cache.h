@@ -34,6 +34,11 @@ public:
         return *buffer;
     }
 
+    /// Host mapping of a unified memory buffer, empty for staged buffers.
+    [[nodiscard]] std::span<u8> Mapped() noexcept {
+        return buffer.Mapped();
+    }
+
     [[nodiscard]] bool IsRegionUsed(u64 offset, u64 size) const noexcept {
         return tracker.IsUsed(offset, size);
     }
@@ -82,6 +87,13 @@ public:
                                 DescriptorPool& descriptor_pool);
 
     void TickFrame(Common::SlotVector<Buffer>& slot_buffers) noexcept;
+
+    /// Tick of the command buffer being recorded; work recorded now completes at this tick.
+    [[nodiscard]] u64 CurrentTick() const noexcept;
+
+    /// Last tick the GPU is known to have completed (MasterSemaphore::KnownGpuTick, a cached
+    /// value that can lag behind the GPU, never run ahead of it).
+    [[nodiscard]] u64 KnownGpuTick() const noexcept;
 
     void Finish();
 
