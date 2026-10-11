@@ -25,7 +25,6 @@ add_library(common STATIC
     assert.cpp
     assert.h
     atomic_ops.h
-    bit_cast.h
     bit_field.h
     bit_set.h
     bit_util.h
@@ -74,7 +73,6 @@ add_library(common STATIC
     logging.h
     lz4_compression.cpp
     lz4_compression.h
-    make_unique_for_overwrite.h
     math_util.h
     memory_detect.cpp
     memory_detect.h
