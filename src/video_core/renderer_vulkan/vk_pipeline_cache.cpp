@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <bit>
 #include <cstddef>
 #include <fstream>
 #include <limits>
@@ -13,7 +14,6 @@
 
 #include <boost/container/small_vector.hpp>
 
-#include "common/bit_cast.h"
 #include "common/cityhash.h"
 #include "common/fs/fs.h"
 #include "common/fs/path_util.h"
@@ -195,7 +195,7 @@ Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> program
     const Shader::Stage stage{program.stage};
     const bool has_geometry{key.unique_hashes[4] != 0 && !programs[4].is_geometry_passthrough};
     const bool gl_ndc{key.state.ndc_minus_one_to_one != 0};
-    const float point_size{Common::BitCast<float>(key.state.point_size)};
+    const float point_size{std::bit_cast<float>(key.state.point_size)};
     switch (stage) {
     case Shader::Stage::VertexB:
         if (!has_geometry) {
@@ -268,7 +268,7 @@ Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> program
         if (!Settings::IsGPULevelLow()) {
             info.alpha_test_func = MaxwellToCompareFunction(
                 key.state.UnpackComparisonOp(key.state.alpha_test_func.Value()));
-            info.alpha_test_reference = Common::BitCast<float>(key.state.alpha_test_ref);
+            info.alpha_test_reference = std::bit_cast<float>(key.state.alpha_test_ref);
         }
         break;
     }
