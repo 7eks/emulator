@@ -24,10 +24,7 @@ using Core::DEVICE_PAGESIZE;
 template <class P>
 BufferCache<P>::BufferCache(Tegra::MaxwellDeviceMemoryManager& device_memory_, Runtime& runtime_)
     : runtime{runtime_}, device_memory{device_memory_}, memory_tracker{device_memory},
-      write_heat{Tegra::MaxwellDeviceMemoryManager::AS_BITS, PAGE_TABLE_FIRST_LEVEL_BITS,
-                 CACHING_PAGEBITS},
-      page_table{Tegra::MaxwellDeviceMemoryManager::AS_BITS, PAGE_TABLE_FIRST_LEVEL_BITS,
-                 CACHING_PAGEBITS} {
+      write_heat{CACHING_PAGE_COUNT}, page_table{CACHING_PAGE_COUNT} {
     // Ensure the first slot is used for the null buffer
     void(slot_buffers.insert(runtime, NullBufferParams{}));
     gpu_modified_ranges.Clear();
@@ -222,7 +219,7 @@ u64 BufferCache<P>::WidenHotWrite(DAddr device_addr, u64 size) {
     const auto is_hot = [&is_recent](u32 heat) {
         return static_cast<u16>(heat) >= HOT_WRITE_COUNT && is_recent(heat);
     };
-    u32& heat = write_heat.GetOrAllocate(block);
+    u32& heat = write_heat[block];
     u16 count = static_cast<u16>(heat);
     if (!is_recent(heat)) {
         count /= 2;
@@ -241,8 +238,7 @@ u64 BufferCache<P>::WidenHotWrite(DAddr device_addr, u64 size) {
         std::min<u64>(CACHING_PAGE_COUNT, block + MAX_WIDENED_WRITE / CACHING_PAGESIZE);
     u64 end_block = block + 1;
     while (end_block < last_block) {
-        const u32* const next = write_heat.TryGet(end_block);
-        if (!next || !is_hot(*next)) {
+        if (!is_hot(write_heat[end_block])) {
             break;
         }
         ++end_block;
