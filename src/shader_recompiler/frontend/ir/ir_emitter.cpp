@@ -69,7 +69,7 @@ void IREmitter::Reference(const Value& value) {
 }
 
 void IREmitter::PhiMove(IR::Inst& phi, const Value& value) {
-    Inst(Opcode::PhiMove, Value{&phi}, value);
+    Inst(Opcode::PhiMove, Value{phi}, value);
 }
 
 void IREmitter::Prologue() {

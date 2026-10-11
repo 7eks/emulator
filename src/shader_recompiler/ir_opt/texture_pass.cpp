@@ -68,11 +68,12 @@ bool CanTakeFieldOf(const ConstBufferAddr& addr) {
 /// A field of one constant buffer word, read at a fixed place. Unlike Track this does not look
 /// through instructions it does not know, so a value computed in the shader is not mistaken for
 /// a constant.
-std::optional<ConstBufferAddr> StrictWordField(const IR::Value& value) {
-    if (value.IsImmediate()) {
+std::optional<ConstBufferAddr> StrictWordField(const IR::InstStorage& storage,
+                                               const IR::Value& value) {
+    const IR::Inst* const inst{storage.Get(value)};
+    if (!inst) {
         return std::nullopt;
     }
-    const IR::Inst* const inst{value.InstRecursive()};
     switch (inst->GetOpcode()) {
     case IR::Opcode::GetCbufU32: {
         const IR::Value index{inst->Arg(0)};
@@ -101,7 +102,7 @@ std::optional<ConstBufferAddr> StrictWordField(const IR::Value& value) {
         if (!rhs.IsImmediate()) {
             return std::nullopt;
         }
-        std::optional inner{StrictWordField(lhs)};
+        std::optional inner{StrictWordField(storage, lhs)};
         if (inner) {
             ApplyAnd(*inner, rhs.U32());
         }
@@ -112,7 +113,7 @@ std::optional<ConstBufferAddr> StrictWordField(const IR::Value& value) {
         if (!shift.IsImmediate()) {
             return std::nullopt;
         }
-        std::optional inner{StrictWordField(inst->Arg(0))};
+        std::optional inner{StrictWordField(storage, inst->Arg(0))};
         if (inner) {
             ApplyShiftRight(*inner, shift.U32());
         }
@@ -124,7 +125,7 @@ std::optional<ConstBufferAddr> StrictWordField(const IR::Value& value) {
         if (!offset.IsImmediate() || !count.IsImmediate()) {
             return std::nullopt;
         }
-        std::optional inner{StrictWordField(inst->Arg(0))};
+        std::optional inner{StrictWordField(storage, inst->Arg(0))};
         if (inner) {
             ApplyShiftRight(*inner, offset.U32());
             ApplyAnd(*inner, count.U32() < 32 ? ((1U << count.U32()) - 1) : 0xFFFFFFFF);
@@ -143,11 +144,12 @@ struct TableOffset {
     u32 base;
 };
 
-std::optional<TableOffset> TrackTableOffset(const IR::Value& value) {
-    if (value.IsImmediate()) {
+std::optional<TableOffset> TrackTableOffset(const IR::InstStorage& storage,
+                                            const IR::Value& value) {
+    const IR::Inst* const inst{storage.Get(value)};
+    if (!inst) {
         return std::nullopt;
     }
-    const IR::Inst* const inst{value.InstRecursive()};
     switch (inst->GetOpcode()) {
     case IR::Opcode::IAdd32: {
         IR::Value lhs{inst->Arg(0)};
@@ -158,7 +160,7 @@ std::optional<TableOffset> TrackTableOffset(const IR::Value& value) {
         if (!rhs.IsImmediate()) {
             return std::nullopt;
         }
-        std::optional inner{TrackTableOffset(lhs)};
+        std::optional inner{TrackTableOffset(storage, lhs)};
         if (inner) {
             inner->base += rhs.U32();
         }
@@ -169,7 +171,7 @@ std::optional<TableOffset> TrackTableOffset(const IR::Value& value) {
         if (!shift.IsImmediate() || shift.U32() >= 32) {
             return std::nullopt;
         }
-        std::optional inner{TrackTableOffset(inst->Arg(0))};
+        std::optional inner{TrackTableOffset(storage, inst->Arg(0))};
         if (inner) {
             inner->shift += shift.U32();
             inner->base <<= shift.U32();
@@ -186,7 +188,7 @@ std::optional<TableOffset> TrackTableOffset(const IR::Value& value) {
             offset.U32() >= 32) {
             return std::nullopt;
         }
-        std::optional inner{TrackTableOffset(inst->Arg(1))};
+        std::optional inner{TrackTableOffset(storage, inst->Arg(1))};
         if (!inner || inner->base != 0 || inner->shift >= 32) {
             return std::nullopt;
         }
@@ -199,7 +201,7 @@ std::optional<TableOffset> TrackTableOffset(const IR::Value& value) {
     default:
         break;
     }
-    std::optional<ConstBufferAddr> word{StrictWordField(value)};
+    std::optional<ConstBufferAddr> word{StrictWordField(storage, value)};
     if (!word) {
         return std::nullopt;
     }
@@ -218,8 +220,8 @@ constexpr u32 DESCRIPTOR_SIZE = 8;
 constexpr u32 DESCRIPTOR_SIZE_SHIFT = static_cast<u32>(std::countr_zero(DESCRIPTOR_SIZE));
 constexpr u32 DESCRIPTOR_MAX_COUNT = 1024;
 
-u32 DynamicDescriptorSizeShift(const IR::U32& dynamic_offset) {
-    const IR::Inst* const inst{dynamic_offset.InstRecursive()};
+u32 DynamicDescriptorSizeShift(const IR::InstStorage& storage, const IR::U32& dynamic_offset) {
+    const IR::Inst* const inst{storage.Get(dynamic_offset)};
     if (!inst || inst->GetOpcode() != IR::Opcode::ShiftLeftLogical32) {
         return DESCRIPTOR_SIZE_SHIFT;
     }
@@ -344,7 +346,7 @@ u32 ActiveFragmentColorAttachmentCount(const IR::Program& program) {
     }
     std::array<bool, 8> active_attachments{};
     for (const IR::Block* const block : program.post_order_blocks) {
-        for (const IR::Inst& inst : block->Instructions()) {
+        for (const IR::Inst& inst : *block) {
             if (inst.GetOpcode() == IR::Opcode::SetFragColor) {
                 active_attachments.at(inst.Arg(0).U32()) = true;
             }
@@ -495,7 +497,7 @@ void ClampDynamicTextureDescriptors(IR::Program& program, const TextureInstVecto
         if (old_count <= new_count) {
             continue;
         }
-        IR::Inst* const clamp{inst.Arg(0).InstRecursive()};
+        IR::Inst* const clamp{inst.ArgInst(0)};
         if (!clamp || clamp->GetOpcode() != IR::Opcode::UMin32) {
             throw LogicError("Dynamic texture index is missing its bounds clamp");
         }
@@ -565,15 +567,16 @@ bool IsTextureInstruction(const IR::Inst& inst) {
 std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environment& env,
                                                  const HostTranslateInfo& host_info);
 
-std::optional<ConstBufferAddr> Track(const IR::Value& value, Environment& env,
-                                     const HostTranslateInfo& host_info) {
-    return IR::BreadthFirstSearch(value, [&env, &host_info](const IR::Inst* inst) {
+std::optional<ConstBufferAddr> Track(const IR::InstStorage& storage, const IR::Value& value,
+                                     Environment& env, const HostTranslateInfo& host_info) {
+    return IR::BreadthFirstSearch(storage, value, [&env, &host_info](const IR::Inst* inst) {
         return TryGetConstBuffer(inst, env, host_info);
     });
 }
 
-std::optional<u32> TryGetConstant(IR::Value& value, Environment& env) {
-    const IR::Inst* inst = value.InstRecursive();
+std::optional<u32> TryGetConstant(const IR::InstStorage& storage, IR::Value& value,
+                                  Environment& env) {
+    const IR::Inst* inst = storage.Get(value);
     if (inst->GetOpcode() != IR::Opcode::GetCbufU32) {
         return std::nullopt;
     }
@@ -599,8 +602,8 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
     default:
         return std::nullopt;
     case IR::Opcode::BitwiseOr32: {
-        std::optional lhs{Track(inst->Arg(0), env, host_info)};
-        std::optional rhs{Track(inst->Arg(1), env, host_info)};
+        std::optional lhs{Track(inst->Storage(), inst->Arg(0), env, host_info)};
+        std::optional rhs{Track(inst->Storage(), inst->Arg(1), env, host_info)};
         if (!lhs || !rhs) {
             return std::nullopt;
         }
@@ -645,7 +648,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
         if (!shift.IsImmediate()) {
             return std::nullopt;
         }
-        std::optional lhs{Track(inst->Arg(0), env, host_info)};
+        std::optional lhs{Track(inst->Storage(), inst->Arg(0), env, host_info)};
         if (lhs) {
             lhs->shift_left += shift.U32();
         }
@@ -657,7 +660,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
         if (!shift.IsImmediate()) {
             return std::nullopt;
         }
-        std::optional lhs{Track(inst->Arg(0), env, host_info)};
+        std::optional lhs{Track(inst->Storage(), inst->Arg(0), env, host_info)};
         if (lhs && !CanTakeFieldOf(*lhs)) {
             return std::nullopt;
         }
@@ -672,7 +675,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
         if (!offset.IsImmediate() || !count.IsImmediate()) {
             return std::nullopt;
         }
-        std::optional lhs{Track(inst->Arg(0), env, host_info)};
+        std::optional lhs{Track(inst->Storage(), inst->Arg(0), env, host_info)};
         if (lhs && !CanTakeFieldOf(*lhs)) {
             return std::nullopt;
         }
@@ -690,13 +693,13 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
         }
         if (!op2.IsImmediate() && !op1.IsImmediate()) {
             do {
-                auto try_index = TryGetConstant(op1, env);
+                auto try_index = TryGetConstant(inst->Storage(), op1, env);
                 if (try_index) {
                     op1 = op2;
                     op2 = IR::Value{*try_index};
                     break;
                 }
-                auto try_index_2 = TryGetConstant(op2, env);
+                auto try_index_2 = TryGetConstant(inst->Storage(), op2, env);
                 if (try_index_2) {
                     op2 = IR::Value{*try_index_2};
                     break;
@@ -704,7 +707,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
                 return std::nullopt;
             } while (false);
         }
-        std::optional lhs{Track(op1, env, host_info)};
+        std::optional lhs{Track(inst->Storage(), op1, env, host_info)};
         if (lhs) {
             const u32 value = op2.U32();
             const bool field_taken{lhs->shift_right != 0 || lhs->mask != 0xFFFFFFFF};
@@ -751,7 +754,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
                 .mask = 0xFFFF,
             };
         }
-        const std::optional<TableOffset> entry{TrackTableOffset(table_offset)};
+        const std::optional<TableOffset> entry{TrackTableOffset(inst->Storage(), table_offset)};
         if (!entry) {
             return std::nullopt;
         }
@@ -786,7 +789,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
             .has_secondary = false,
         };
     }
-    IR::Inst* const offset_inst{offset.InstRecursive()};
+    IR::Inst* const offset_inst{inst->ArgInst(1)};
     if (offset_inst->GetOpcode() != IR::Opcode::IAdd32) {
         return std::nullopt;
     }
@@ -801,7 +804,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
     } else {
         return std::nullopt;
     }
-    const u32 size_shift{DynamicDescriptorSizeShift(dynamic_offset)};
+    const u32 size_shift{DynamicDescriptorSizeShift(inst->Storage(), dynamic_offset)};
     const u32 sampled_limit{std::min(host_info.max_per_stage_descriptor_sampled_images,
                                      host_info.max_descriptor_set_sampled_images)};
     const u32 storage_limit{host_info.max_per_stage_descriptor_storage_images};
@@ -827,7 +830,8 @@ TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst,
                      const HostTranslateInfo& host_info) {
     ConstBufferAddr addr;
     if (IsBindless(inst)) {
-        const std::optional<ConstBufferAddr> track_addr{Track(inst.Arg(0), env, host_info)};
+        const std::optional<ConstBufferAddr> track_addr{
+            Track(inst.Storage(), inst.Arg(0), env, host_info)};
         if (!track_addr) {
             // Enhanced bindless texture handling for UE4 games like Hogwarts Legacy
             // Instead of throwing an exception, we'll use a fallback approach
@@ -1001,7 +1005,7 @@ private:
 };
 
 void PatchImageSampleImplicitLod(IR::Block& block, IR::Inst& inst) {
-    IR::IREmitter ir{block, IR::Block::InstructionList::s_iterator_to(inst)};
+    IR::IREmitter ir{block, block.IteratorTo(inst)};
     const auto info{inst.Flags<IR::TextureInstInfo>()};
     const IR::Value coord(inst.Arg(1));
     const IR::Value handle(ir.Imm32(0));
@@ -1031,8 +1035,8 @@ bool IsPixelFormatSNorm(TexturePixelFormat pixel_format) {
 }
 
 void PatchTexelFetch(IR::Block& block, IR::Inst& inst, TexturePixelFormat pixel_format) {
-    const auto it{IR::Block::InstructionList::s_iterator_to(inst)};
-    IR::IREmitter ir{block, IR::Block::InstructionList::s_iterator_to(inst)};
+    const auto it{block.IteratorTo(inst)};
+    IR::IREmitter ir{block, block.IteratorTo(inst)};
     auto get_max_value = [pixel_format]() -> float {
         switch (pixel_format) {
         case TexturePixelFormat::A8B8G8R8_SNORM:
@@ -1048,7 +1052,7 @@ void PatchTexelFetch(IR::Block& block, IR::Inst& inst, TexturePixelFormat pixel_
         }
     };
 
-    const IR::Value new_inst{&*block.PrependNewInst(it, inst)};
+    const IR::Value new_inst{*block.PrependNewInst(it, inst)};
     const IR::F32 x(ir.CompositeExtract(new_inst, 0));
     const IR::F32 y(ir.CompositeExtract(new_inst, 1));
     const IR::F32 z(ir.CompositeExtract(new_inst, 2));
@@ -1066,7 +1070,7 @@ void PatchTexelFetch(IR::Block& block, IR::Inst& inst, TexturePixelFormat pixel_
 void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo& host_info) {
     TextureInstVector to_replace;
     for (IR::Block* const block : program.post_order_blocks) {
-        for (IR::Inst& inst : block->Instructions()) {
+        for (IR::Inst& inst : *block) {
             if (!IsTextureInstruction(inst)) {
                 continue;
             }
@@ -1129,8 +1133,9 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             break;
         }
         u32 index;
-        const u32 size_shift{cbuf.count > 1 ? DynamicDescriptorSizeShift(cbuf.dynamic_offset)
-                                            : DESCRIPTOR_SIZE_SHIFT};
+        const u32 size_shift{cbuf.count > 1
+                                 ? DynamicDescriptorSizeShift(inst->Storage(), cbuf.dynamic_offset)
+                                 : DESCRIPTOR_SIZE_SHIFT};
         u32 count{cbuf.count};
         switch (inst->GetOpcode()) {
         case IR::Opcode::ImageRead:
@@ -1236,7 +1241,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
         inst->SetFlags(flags);
 
         if (count > 1) {
-            const auto insert_point{IR::Block::InstructionList::s_iterator_to(*inst)};
+            const auto insert_point{texture_inst.block->IteratorTo(*inst)};
             IR::IREmitter ir{*texture_inst.block, insert_point};
             const IR::U32 shift{ir.Imm32(size_shift)};
             inst->SetArg(
@@ -1274,7 +1279,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
 void ClampDynamicSampledTextureDescriptors(IR::Program& program, u32 max_count) {
     TextureInstVector texture_insts;
     for (IR::Block* const block : program.post_order_blocks) {
-        for (IR::Inst& inst : block->Instructions()) {
+        for (IR::Inst& inst : *block) {
             switch (inst.GetOpcode()) {
             case IR::Opcode::ImageSampleImplicitLod:
             case IR::Opcode::ImageSampleExplicitLod:
@@ -1312,7 +1317,7 @@ void ClampDynamicStorageTextureDescriptors(IR::Program& program, u32 max_count) 
     const auto old_image_counts = clamp_descriptors(program.info.image_descriptors);
 
     for (IR::Block* const block : program.post_order_blocks) {
-        for (IR::Inst& inst : block->Instructions()) {
+        for (IR::Inst& inst : *block) {
             if (!IsStorageImageOpcode(inst.GetOpcode())) {
                 continue;
             }
@@ -1325,7 +1330,7 @@ void ClampDynamicStorageTextureDescriptors(IR::Program& program, u32 max_count) 
             if (old_counts.at(index) <= new_count) {
                 continue;
             }
-            IR::Inst* const clamp{inst.Arg(0).InstRecursive()};
+            IR::Inst* const clamp{inst.ArgInst(0)};
             if (!clamp || clamp->GetOpcode() != IR::Opcode::UMin32) {
                 throw LogicError("Dynamic storage texture index is missing its bounds clamp");
             }
