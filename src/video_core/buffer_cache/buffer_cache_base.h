@@ -19,7 +19,7 @@
 #include "common/div_ceil.h"
 #include "common/literals.h"
 #include "common/lru_cache.h"
-#include "common/multi_level_page_table.h"
+#include "common/virtual_buffer.h"
 #include "common/range_sets.h"
 #include "common/scope_exit.h"
 #include "common/settings.h"
@@ -171,13 +171,6 @@ class BufferCache : public VideoCommon::ChannelSetupCaches<BufferCacheChannelInf
     static constexpr u64 CACHING_PAGE_COUNT =
         1ULL << (Tegra::MaxwellDeviceMemoryManager::AS_BITS - CACHING_PAGEBITS);
     static constexpr u64 CACHING_ADDRESS_SPACE_SIZE = CACHING_PAGE_COUNT * CACHING_PAGESIZE;
-    // A 9-bit first level leaves 14 page-index bits per 64 KiB second-level allocation.
-    static constexpr size_t PAGE_TABLE_FIRST_LEVEL_BITS = 9;
-    static_assert((1ULL << (Tegra::MaxwellDeviceMemoryManager::AS_BITS -
-                            PAGE_TABLE_FIRST_LEVEL_BITS - CACHING_PAGEBITS)) *
-                      sizeof(u32) ==
-                  64_KiB);
-
     static constexpr bool IS_OPENGL = P::IS_OPENGL;
     static constexpr bool HAS_PERSISTENT_UNIFORM_BUFFER_BINDINGS =
         P::HAS_PERSISTENT_UNIFORM_BUFFER_BINDINGS;
@@ -375,11 +368,11 @@ private:
         if (page >= CACHING_PAGE_COUNT) {
             return BufferId{};
         }
-        const u32* const entry = page_table.TryGet(page);
-        if (!entry || *entry == 0) {
+        const u32 entry = page_table[page];
+        if (entry == 0) {
             return BufferId{};
         }
-        const BufferId buffer_id{*entry - 1};
+        const BufferId buffer_id{entry - 1};
         // A damaged page-table entry must not become an unchecked SlotVector index.
         return slot_buffers.contains(buffer_id) ? buffer_id : BufferId{};
     }
@@ -388,13 +381,12 @@ private:
         if (page >= CACHING_PAGE_COUNT) {
             return;
         }
-        if (!buffer_id) {
-            if (u32* const entry = page_table.TryGet(page)) {
-                *entry = 0;
-            }
-            return;
+        // An entry that already holds the value is not written, so table pages nothing was ever
+        // registered in stay untouched.
+        const u32 entry = buffer_id ? buffer_id.index + 1 : 0;
+        if (page_table[page] != entry) {
+            page_table[page] = entry;
         }
-        page_table.GetOrAllocate(page) = buffer_id.index + 1;
     }
 
     bool RunGarbageCollector(bool aggressive_gc);
@@ -566,12 +558,13 @@ public:
     u64 frame_tick = 0;
 
     /// How often the guest recently wrote into pages this cache was watching, per caching page:
-    /// frame of the last write in the upper 16 bits, count in the lower 16. Laid out like
-    /// page_table, so only the parts of the address space the guest writes to take memory.
+    /// frame of the last write in the upper 16 bits, count in the lower 16. One flat table like
+    /// page_table: the host commits its pages when they are first written, so only the parts of
+    /// the address space the guest writes to take memory.
     static constexpr u16 HOT_WRITE_COUNT = 4;
     static constexpr u16 WRITE_HEAT_FRAMES = 30;
     static constexpr u64 MAX_WIDENED_WRITE = 16 * CACHING_PAGESIZE;
-    Common::MultiLevelPageTable<u32> write_heat;
+    Common::VirtualBuffer<u32> write_heat;
 
     u64 total_used_memory = 0; // Bytes owned by this cache.
     CacheMemoryPressure memory_pressure;
@@ -582,7 +575,7 @@ public:
     u32 buffer_count = 0;
     u32 large_buffer_count = 0;
 
-    Common::MultiLevelPageTable<u32> page_table;
+    Common::VirtualBuffer<u32> page_table;
     Common::ScratchBuffer<u8> tmp_buffer;
 };
 
