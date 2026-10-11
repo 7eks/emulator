@@ -82,8 +82,13 @@ void Puller::ProcessSemaphoreTriggerMethod() {
     if (op == GpuSemaphoreOperation::WriteLong) {
         const GPUVAddr sequence_address{regs.semaphore_address.SemaphoreAddress()};
         const u32 payload = regs.semaphore_sequence;
+        // IsAFence: write the release once the host GPU has finished the work before it, like
+        // SemaphoreRelease below. Without it the write waits in SyncOperation for some later
+        // fence, so a guest polling the semaphore without a fence of its own never sees it.
         rasterizer->Query(sequence_address, VideoCommon::QueryType::Payload,
-                          VideoCommon::QueryPropertiesFlags::HasTimeout, payload, 0);
+                          VideoCommon::QueryPropertiesFlags::HasTimeout |
+                              VideoCommon::QueryPropertiesFlags::IsAFence,
+                          payload, 0);
     } else {
         do {
             const u32 word{memory_manager.Read<u32>(regs.semaphore_address.SemaphoreAddress())};
