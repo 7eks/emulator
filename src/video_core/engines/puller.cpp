@@ -76,19 +76,23 @@ void Puller::ProcessFenceActionMethod() {
 }
 
 void Puller::ProcessSemaphoreTriggerMethod() {
-    const auto semaphoreOperationMask = 0xF;
+    // MAXWELL_CHANNEL_GPFIFO_A (clb06f.h): SEMAPHORED_OPERATION is 4:0, RELEASE_SIZE is 24:24
+    // (0 = 16 bytes: payload, zero, timestamp; 1 = 4 bytes: payload only).
+    static constexpr u32 semaphore_operation_mask = 0x1F;
+    static constexpr u32 release_size_4byte = 1U << 24;
     const auto op =
-        static_cast<GpuSemaphoreOperation>(regs.semaphore_trigger & semaphoreOperationMask);
+        static_cast<GpuSemaphoreOperation>(regs.semaphore_trigger & semaphore_operation_mask);
     if (op == GpuSemaphoreOperation::WriteLong) {
         const GPUVAddr sequence_address{regs.semaphore_address.SemaphoreAddress()};
         const u32 payload = regs.semaphore_sequence;
         // IsAFence: write the release once the host GPU has finished the work before it, like
         // SemaphoreRelease below. Without it the write waits in SyncOperation for some later
         // fence, so a guest polling the semaphore without a fence of its own never sees it.
-        rasterizer->Query(sequence_address, VideoCommon::QueryType::Payload,
-                          VideoCommon::QueryPropertiesFlags::HasTimeout |
-                              VideoCommon::QueryPropertiesFlags::IsAFence,
-                          payload, 0);
+        auto flags = VideoCommon::QueryPropertiesFlags::IsAFence;
+        if ((regs.semaphore_trigger & release_size_4byte) == 0) {
+            flags |= VideoCommon::QueryPropertiesFlags::HasTimeout;
+        }
+        rasterizer->Query(sequence_address, VideoCommon::QueryType::Payload, flags, payload, 0);
     } else {
         do {
             const u32 word{memory_manager.Read<u32>(regs.semaphore_address.SemaphoreAddress())};
