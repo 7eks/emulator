@@ -25,6 +25,7 @@
 #include "common/settings.h"
 #include "common/slot_vector.h"
 #include "video_core/buffer_cache/buffer_base.h"
+#include "video_core/buffer_cache/uma.h"
 #include "video_core/cache_memory_pressure.h"
 #include "video_core/control/channel_state_cache.h"
 #include "video_core/delayed_destruction_ring.h"
@@ -490,6 +491,13 @@ public:
     void ChangeRegister(BufferId buffer_id);
 
     void TouchBuffer(Buffer& buffer, BufferId buffer_id) noexcept;
+
+    /// Records that GPU work is about to use [offset, offset + size) of the buffer: marks the
+    /// range for upload reordering and stamps its pages with the current scheduler tick for the
+    /// unified memory rule. Bind, clear, DMA, overlap and download sites use this; staged copies,
+    /// ObtainCPUBuffer and the indirect getters stamp their range with Uma::StampPages, as
+    /// they are not tracked for upload reordering.
+    void MarkGpuUse(Buffer& buffer, u64 offset, u64 size);
 
     bool SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 size);
 

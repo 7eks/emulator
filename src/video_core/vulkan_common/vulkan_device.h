@@ -691,6 +691,11 @@ public:
         return 0x00010300U;
     }
 
+    /// Returns true when the physical device reports VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU.
+    bool IsIntegrated() const {
+        return is_integrated;
+    }
+
     /// Returns true when a known debugging tool is attached.
     bool HasDebuggingToolAttached() const {
         return has_renderdoc || has_nsight_graphics;

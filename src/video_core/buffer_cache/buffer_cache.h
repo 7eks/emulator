@@ -376,8 +376,8 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
         gpu_modified_ranges.Add(pair.first, pair.second);
     }
     const auto& copy = copies[0];
-    src_buffer.MarkUsage(copy.src_offset, copy.size);
-    dest_buffer.MarkUsage(copy.dst_offset, copy.size);
+    MarkGpuUse(src_buffer, copy.src_offset, copy.size);
+    MarkGpuUse(dest_buffer, copy.dst_offset, copy.size);
     runtime.CopyBuffer(dest_buffer, src_buffer, copies, true);
     if (has_new_downloads) {
         memory_tracker.MarkRegionAsGpuModified(*cpu_dest_address, amount);
@@ -408,7 +408,7 @@ bool BufferCache<P>::DMAClear(GPUVAddr dst_address, u64 amount, u32 value) {
     Buffer& dest_buffer = slot_buffers[buffer];
     const u32 offset = dest_buffer.Offset(*cpu_dst_address);
     runtime.ClearBuffer(dest_buffer, offset, size, value);
-    dest_buffer.MarkUsage(offset, size);
+    MarkGpuUse(dest_buffer, offset, size);
     return true;
 }
 
@@ -454,6 +454,8 @@ std::pair<typename P::Buffer*, u32> BufferCache<P>::ObtainCPUBuffer(
         break;
     }
 
+    // The caller hands this range to GPU work (queries, indirect dispatch, DMA image copies).
+    Uma::StampPages(buffer.page_gpu_tick, buffer.Offset(device_addr), size, runtime.CurrentTick());
     return {&buffer, buffer.Offset(device_addr)};
 }
 
@@ -736,7 +738,7 @@ void BufferCache<P>::CommitAsyncFlushesHigh() {
         second_copy.src_offset = static_cast<size_t>(buffer.CpuAddr()) + copy.src_offset;
         const DAddr orig_device_addr = static_cast<DAddr>(second_copy.src_offset);
         async_downloads.Add(orig_device_addr, copy.size);
-        buffer.MarkUsage(copy.src_offset, copy.size);
+        MarkGpuUse(buffer, copy.src_offset, copy.size);
         runtime.CopyBuffer(download_staging.buffer, buffer, copies, false);
         normalized_copies.push_back(second_copy);
     }
@@ -836,6 +838,7 @@ void BufferCache<P>::BindHostIndexBuffer() {
             std::memcpy(upload_staging.mapped_span.data(),
                         draw_state.inline_index_draw_indexes.data(), size);
             runtime.CopyBuffer(buffer, upload_staging.buffer, copies, true);
+            Uma::StampPages(buffer.page_gpu_tick, 0, size, runtime.CurrentTick());
         } else {
             buffer.ImmediateUpload(0, draw_state.inline_index_draw_indexes);
         }
@@ -847,7 +850,7 @@ void BufferCache<P>::BindHostIndexBuffer() {
             offset + draw_state.index_buffer.first * draw_state.index_buffer.FormatSizeInBytes();
         runtime.BindIndexBuffer(buffer, new_offset, size);
     } else {
-        buffer.MarkUsage(offset, size);
+        MarkGpuUse(buffer, offset, size);
         runtime.BindIndexBuffer(draw_state.topology, draw_state.index_buffer.format,
                                 draw_state.index_buffer.first, draw_state.index_buffer.count,
                                 buffer, offset, size);
@@ -887,7 +890,7 @@ void BufferCache<P>::BindHostVertexBuffers() {
 
             const u32 stride = maxwell3d->regs.vertex_streams[index].stride;
             const u32 offset = buffer.Offset(binding.device_addr);
-            buffer.MarkUsage(offset, binding.size);
+            MarkGpuUse(buffer, offset, binding.size);
 
             host_bindings.buffers.push_back(&buffer);
             host_bindings.offsets.push_back(offset);
@@ -1047,7 +1050,7 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     if constexpr (HAS_PERSISTENT_UNIFORM_BUFFER_BINDINGS) {
         channel_state->uniform_buffer_binding_sizes[stage][binding_index] = size;
     }
-    buffer.MarkUsage(offset, size);
+    MarkGpuUse(buffer, offset, size);
     if constexpr (NEEDS_BIND_UNIFORM_INDEX) {
         runtime.BindUniformBuffer(stage, binding_index, buffer, offset, size);
     } else {
@@ -1066,7 +1069,7 @@ void BufferCache<P>::BindHostGraphicsStorageBuffers(size_t stage) {
         SynchronizeBuffer(buffer, binding.device_addr, size);
 
         const u32 offset = buffer.Offset(binding.device_addr);
-        buffer.MarkUsage(offset, size);
+        MarkGpuUse(buffer, offset, size);
         const bool is_written = ((channel_state->written_storage_buffers[stage] >> index) & 1) != 0;
 
         if (is_written) {
@@ -1097,7 +1100,7 @@ void BufferCache<P>::BindHostGraphicsTextureBuffers(size_t stage) {
 
         const u32 offset = buffer.Offset(binding.device_addr);
         const PixelFormat format = binding.format;
-        buffer.MarkUsage(offset, size);
+        MarkGpuUse(buffer, offset, size);
         if constexpr (SEPARATE_IMAGE_BUFFERS_BINDINGS) {
             if (((channel_state->image_texture_buffers[stage] >> index) & 1) != 0) {
                 runtime.BindImageBuffer(buffer, offset, size, format);
@@ -1130,7 +1133,7 @@ void BufferCache<P>::BindHostTransformFeedbackBuffers() {
         MarkWrittenBuffer(binding.buffer_id, binding.device_addr, size);
 
         const u32 offset = buffer.Offset(binding.device_addr);
-        buffer.MarkUsage(offset, size);
+        MarkGpuUse(buffer, offset, size);
         host_bindings.buffers.push_back(&buffer);
         host_bindings.offsets.push_back(offset);
         host_bindings.sizes.push_back(size);
@@ -1157,7 +1160,7 @@ void BufferCache<P>::BindHostComputeUniformBuffers() {
         SynchronizeBuffer(buffer, binding.device_addr, size);
 
         const u32 offset = buffer.Offset(binding.device_addr);
-        buffer.MarkUsage(offset, size);
+        MarkGpuUse(buffer, offset, size);
         if constexpr (NEEDS_BIND_UNIFORM_INDEX) {
             runtime.BindComputeUniformBuffer(binding_index, buffer, offset, size);
             ++binding_index;
@@ -1178,7 +1181,7 @@ void BufferCache<P>::BindHostComputeStorageBuffers() {
         SynchronizeBuffer(buffer, binding.device_addr, size);
 
         const u32 offset = buffer.Offset(binding.device_addr);
-        buffer.MarkUsage(offset, size);
+        MarkGpuUse(buffer, offset, size);
         const bool is_written =
             ((channel_state->written_compute_storage_buffers >> index) & 1) != 0;
 
@@ -1211,7 +1214,7 @@ void BufferCache<P>::BindHostComputeTextureBuffers() {
 
         const u32 offset = buffer.Offset(binding.device_addr);
         const PixelFormat format = binding.format;
-        buffer.MarkUsage(offset, size);
+        MarkGpuUse(buffer, offset, size);
         if constexpr (SEPARATE_IMAGE_BUFFERS_BINDINGS) {
             if (((channel_state->image_compute_texture_buffers >> index) & 1) != 0) {
                 runtime.BindImageBuffer(buffer, offset, size, format);
@@ -1583,7 +1586,7 @@ void BufferCache<P>::JoinOverlap(BufferId new_buffer_id, BufferId overlap_id,
         .dst_offset = dst_base_offset,
         .size = overlap.SizeBytes(),
     });
-    new_buffer.MarkUsage(copies[0].dst_offset, copies[0].size);
+    MarkGpuUse(new_buffer, copies[0].dst_offset, copies[0].size);
     runtime.CopyBuffer(new_buffer, overlap, copies, true);
     DeleteBuffer(overlap_id, true);
 }
@@ -1602,7 +1605,7 @@ BufferId BufferCache<P>::CreateBuffer(DAddr device_addr, u32 wanted_size) {
     auto& new_buffer = slot_buffers[new_buffer_id];
     const size_t size_bytes = new_buffer.SizeBytes();
     runtime.ClearBuffer(new_buffer, 0, size_bytes, 0);
-    new_buffer.MarkUsage(0, size_bytes);
+    MarkGpuUse(new_buffer, 0, size_bytes);
     for (const BufferId overlap_id : overlap.ids) {
         JoinOverlap(new_buffer_id, overlap_id, !overlap.has_stream_leap);
     }
@@ -1678,6 +1681,12 @@ void BufferCache<P>::TouchBuffer(Buffer& buffer, BufferId buffer_id) noexcept {
 }
 
 template <class P>
+void BufferCache<P>::MarkGpuUse(Buffer& buffer, u64 offset, u64 size) {
+    buffer.MarkUsage(offset, size);
+    Uma::StampPages(buffer.page_gpu_tick, offset, size, runtime.CurrentTick());
+}
+
+template <class P>
 bool BufferCache<P>::SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 size) {
     boost::container::small_vector<BufferCopy, 4> copies;
     u64 total_size_bytes = 0;
@@ -1742,50 +1751,68 @@ void BufferCache<P>::MappedUploadMemory([[maybe_unused]] Buffer& buffer,
                                         [[maybe_unused]] u64 total_size_bytes,
                                         [[maybe_unused]] std::span<BufferCopy> copies) {
     if constexpr (USE_MEMORY_MAPS) {
-        auto upload_staging = runtime.UploadStagingBuffer(total_size_bytes);
-        const std::span<u8> staging_pointer = upload_staging.mapped_span;
-
-        // Never form staging or buffer pointers until every copy has been bounds checked. A short
-        // staging allocation can occur when a request exceeds a driver's allocation limits.
-        const bool staging_too_small = staging_pointer.size() < total_size_bytes;
-        const auto invalid_copy = std::find_if(copies.begin(), copies.end(), [&](const auto& copy) {
-            const bool staging_out_of_bounds =
-                copy.src_offset > staging_pointer.size() ||
-                copy.size > staging_pointer.size() - copy.src_offset;
-            const bool buffer_out_of_bounds =
-                copy.dst_offset > buffer.SizeBytes() ||
-                copy.size > buffer.SizeBytes() - copy.dst_offset;
-            return staging_out_of_bounds || buffer_out_of_bounds;
+        // Unified memory: when no GPU work can still use any page the copies touch, guest memory
+        // is read straight into the buffer. Otherwise it is staged and copied on the GPU, as it
+        // was before unified memory.
+        const std::span<u8> mapped = buffer.Mapped();
+        const u64 known_gpu_tick = runtime.KnownGpuTick();
+        const bool direct = std::ranges::all_of(copies, [&](const BufferCopy& copy) {
+            return copy.dst_offset <= mapped.size() &&
+                   copy.size <= mapped.size() - copy.dst_offset &&
+                   Uma::CanWriteDirectly(!mapped.empty(), buffer.page_gpu_tick, copy.dst_offset,
+                                         copy.size, known_gpu_tick);
         });
-        if (staging_too_small || invalid_copy != copies.end()) {
-            static std::atomic<u64> invalid_upload_count{0};
-            const u64 count = invalid_upload_count.fetch_add(1, std::memory_order_relaxed) + 1;
-            if (count <= 8 || (count % 256) == 0) {
-                if (invalid_copy != copies.end()) {
-                    LOG_ERROR(HW_Memory,
-                              "BufferCache rejected out-of-bounds mapped upload: buffer_base="
-                              "0x{:016X} buffer_size={} staging_size={} total_size={} "
-                              "src_offset={} dst_offset={} copy_size={} sample_count={}",
-                              buffer.CpuAddr(), buffer.SizeBytes(), staging_pointer.size(),
-                              total_size_bytes, invalid_copy->src_offset, invalid_copy->dst_offset,
-                              invalid_copy->size, count);
-                } else {
-                    LOG_ERROR(HW_Memory,
-                              "BufferCache rejected short mapped upload staging allocation: "
-                              "buffer_base=0x{:016X} buffer_size={} staging_size={} total_size={} "
-                              "sample_count={}",
-                              buffer.CpuAddr(), buffer.SizeBytes(), staging_pointer.size(),
-                              total_size_bytes, count);
+        Async_Buffer upload_staging{};
+        std::span<u8> destination = mapped;
+        if (!direct) {
+            upload_staging = runtime.UploadStagingBuffer(total_size_bytes);
+            destination = upload_staging.mapped_span;
+
+            // Never form staging or buffer pointers until every copy has been bounds checked. A
+            // short staging allocation can occur when a request exceeds a driver's allocation
+            // limits.
+            const bool staging_too_small = destination.size() < total_size_bytes;
+            const auto invalid_copy =
+                std::find_if(copies.begin(), copies.end(), [&](const auto& copy) {
+                    const bool staging_out_of_bounds =
+                        copy.src_offset > destination.size() ||
+                        copy.size > destination.size() - copy.src_offset;
+                    const bool buffer_out_of_bounds =
+                        copy.dst_offset > buffer.SizeBytes() ||
+                        copy.size > buffer.SizeBytes() - copy.dst_offset;
+                    return staging_out_of_bounds || buffer_out_of_bounds;
+                });
+            if (staging_too_small || invalid_copy != copies.end()) {
+                static std::atomic<u64> invalid_upload_count{0};
+                const u64 count = invalid_upload_count.fetch_add(1, std::memory_order_relaxed) + 1;
+                if (count <= 8 || (count % 256) == 0) {
+                    if (invalid_copy != copies.end()) {
+                        LOG_ERROR(HW_Memory,
+                                  "BufferCache rejected out-of-bounds mapped upload: buffer_base="
+                                  "0x{:016X} buffer_size={} staging_size={} total_size={} "
+                                  "src_offset={} dst_offset={} copy_size={} sample_count={}",
+                                  buffer.CpuAddr(), buffer.SizeBytes(), destination.size(),
+                                  total_size_bytes, invalid_copy->src_offset,
+                                  invalid_copy->dst_offset, invalid_copy->size, count);
+                    } else {
+                        LOG_ERROR(HW_Memory,
+                                  "BufferCache rejected short mapped upload staging allocation: "
+                                  "buffer_base=0x{:016X} buffer_size={} staging_size={} "
+                                  "total_size={} sample_count={}",
+                                  buffer.CpuAddr(), buffer.SizeBytes(), destination.size(),
+                                  total_size_bytes, count);
+                    }
                 }
+                return;
             }
-            return;
         }
 
         for (BufferCopy& copy : copies) {
-            u8* const src_pointer = staging_pointer.data() + copy.src_offset;
+            u8* const dst_pointer =
+                destination.data() + (direct ? copy.dst_offset : copy.src_offset);
             const DAddr device_addr = buffer.CpuAddr() + copy.dst_offset;
             const auto read_result = device_memory.ReadBlockUnsafe(
-                device_addr, src_pointer, copy.size, "BufferCache.UploadMemory.staging", false);
+                device_addr, dst_pointer, copy.size, "BufferCache.UploadMemory", false);
             if (!read_result.fully_mapped) {
                 static std::atomic<u64> mapping_hole_count{0};
                 const u64 count = mapping_hole_count.fetch_add(1, std::memory_order_relaxed) + 1;
@@ -1793,20 +1820,28 @@ void BufferCache<P>::MappedUploadMemory([[maybe_unused]] Buffer& buffer,
                     LOG_WARNING(
                         HW_Memory,
                         "BufferCache mapped upload contains unmapped pages (zero-filled): "
-                        "buffer_base=0x{:016X} buffer_size={} d_address=0x{:016X} "
+                        "buffer_base=0x{:016X} buffer_size={} d_address=0x{:016X} direct={} "
                         "src_offset={} dst_offset={} copy_size={} total_size={} "
                         "first_unmapped=0x{:016X} unmapped_bytes={} sample_count={}",
-                        buffer.CpuAddr(), buffer.SizeBytes(), device_addr, copy.src_offset,
+                        buffer.CpuAddr(), buffer.SizeBytes(), device_addr, direct, copy.src_offset,
                         copy.dst_offset, copy.size, total_size_bytes,
                         read_result.first_unmapped_address, read_result.unmapped_bytes, count);
                 }
             }
-
-            // Apply the staging offset
-            copy.src_offset += upload_staging.offset;
+            if (!direct) {
+                copy.src_offset += upload_staging.offset; // Apply the staging offset
+            }
+        }
+        if (direct) {
+            return;
         }
         const bool can_reorder = runtime.CanReorderUpload(buffer, copies);
         runtime.CopyBuffer(buffer, upload_staging.buffer, copies, true, can_reorder);
+        // The GPU copy writes these ranges: a later direct write must wait for it.
+        const u64 tick = runtime.CurrentTick();
+        for (const BufferCopy& copy : copies) {
+            Uma::StampPages(buffer.page_gpu_tick, copy.dst_offset, copy.size, tick);
+        }
     }
 }
 
@@ -1849,6 +1884,8 @@ void BufferCache<P>::InlineMemoryImplementation(DAddr dest_address, size_t copy_
         std::memcpy(src_pointer, inlined_buffer.data(), copy_size);
         const bool can_reorder = runtime.CanReorderUpload(buffer, copies);
         runtime.CopyBuffer(buffer, upload_staging.buffer, copies, true, can_reorder);
+        Uma::StampPages(buffer.page_gpu_tick, buffer.Offset(dest_address), copy_size,
+                        runtime.CurrentTick());
     } else {
         buffer.ImmediateUpload(buffer.Offset(dest_address), inlined_buffer.first(copy_size));
     }
@@ -1897,7 +1934,7 @@ void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64
         for (BufferCopy& copy : copies) {
             // Modify copies to have the staging offset in mind
             copy.dst_offset += download_staging.offset;
-            buffer.MarkUsage(copy.src_offset, copy.size);
+            MarkGpuUse(buffer, copy.src_offset, copy.size);
         }
         runtime.CopyBuffer(download_staging.buffer, buffer, copies_span, true);
         runtime.Finish();
@@ -2081,15 +2118,20 @@ bool BufferCache<P>::HasFastUniformBufferBound(size_t stage, u32 binding_index) 
 
 template <class P>
 std::pair<typename BufferCache<P>::Buffer*, u32> BufferCache<P>::GetDrawIndirectCount() {
-    auto& buffer = slot_buffers[channel_state->count_buffer_binding.buffer_id];
-    return std::make_pair(&buffer, buffer.Offset(channel_state->count_buffer_binding.device_addr));
+    const Binding& binding = channel_state->count_buffer_binding;
+    auto& buffer = slot_buffers[binding.buffer_id];
+    Uma::StampPages(buffer.page_gpu_tick, buffer.Offset(binding.device_addr), binding.size,
+                    runtime.CurrentTick());
+    return std::make_pair(&buffer, buffer.Offset(binding.device_addr));
 }
 
 template <class P>
 std::pair<typename BufferCache<P>::Buffer*, u32> BufferCache<P>::GetDrawIndirectBuffer() {
-    auto& buffer = slot_buffers[channel_state->indirect_buffer_binding.buffer_id];
-    return std::make_pair(&buffer,
-                          buffer.Offset(channel_state->indirect_buffer_binding.device_addr));
+    const Binding& binding = channel_state->indirect_buffer_binding;
+    auto& buffer = slot_buffers[binding.buffer_id];
+    Uma::StampPages(buffer.page_gpu_tick, buffer.Offset(binding.device_addr), binding.size,
+                    runtime.CurrentTick());
+    return std::make_pair(&buffer, buffer.Offset(binding.device_addr));
 }
 
 } // namespace VideoCommon
