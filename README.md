@@ -1,6 +1,6 @@
 # Citron Neo
 
-![Citron Neo](./dist/citron.svg)
+<img src="./dist/citron.svg" width="128" alt="Citron Neo logo">
 
 Citron Neo is an open-source emulator that continues the Citron codebase. It
 runs on Windows, Linux, macOS and Android (arm64). Development and maintenance
