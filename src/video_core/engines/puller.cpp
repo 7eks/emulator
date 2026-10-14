@@ -104,23 +104,33 @@ void Puller::ProcessSemaphoreTriggerMethod() {
             regs.acquire_active = true;
             regs.acquire_mode = op == GpuSemaphoreOperation::AcquireGequal;
         }
-        if (AcquirePasses(op, memory_manager.Read<u32>(address), payload)) {
-            return;
-        }
-        // The release may be one this or another channel made earlier that still waits for a
-        // host fence; make those writes first.
-        rasterizer->ReleaseFences();
-        if (AcquirePasses(op, memory_manager.Read<u32>(address), payload)) {
-            return;
-        }
-        // dev_pbdma.ref.txt (Volta, NV_UDMA_SEM_EXECUTE; open-gpu-doc has no Maxwell host
-        // manual): after a failed acquire Host processes no further methods of the channel,
-        // switches to another channel and polls the semaphore when it comes back. The pusher stops
-        // this channel here and the GPU thread retries it (RetryPendingAcquire).
-        pending_acquire = PendingAcquire{address, payload, op, std::chrono::steady_clock::now()};
+        StartAcquire(address, payload, op);
     } else {
         LOG_ERROR(HW_GPU, "Invalid semaphore operation {:#x}", static_cast<u32>(op));
     }
+}
+
+void Puller::StartAcquire(GPUVAddr address, u32 payload, GpuSemaphoreOperation op) {
+    if (AcquirePasses(op, memory_manager.Read<u32>(address), payload)) {
+        return;
+    }
+    // The release may be one this or another channel made earlier that still waits for a
+    // host fence; make those writes first.
+    rasterizer->ReleaseFences();
+    if (AcquirePasses(op, memory_manager.Read<u32>(address), payload)) {
+        return;
+    }
+    // dev_pbdma.ref.txt (Volta, NV_UDMA_SEM_EXECUTE; open-gpu-doc has no Maxwell host
+    // manual): after a failed acquire Host processes no further methods of the channel,
+    // switches to another channel and polls the semaphore when it comes back. The pusher stops
+    // this channel here and the GPU thread retries it (RetryPendingAcquire).
+    pending_acquire = PendingAcquire{address, payload, op, std::chrono::steady_clock::now()};
+}
+
+void Puller::AcquireSemaphore(GPUVAddr address, u32 payload, bool greater_or_equal) {
+    StartAcquire(address, payload,
+                 greater_or_equal ? GpuSemaphoreOperation::AcquireGequal
+                                  : GpuSemaphoreOperation::AcquireEqual);
 }
 
 constexpr bool Puller::AcquirePasses(GpuSemaphoreOperation op, u32 word, u32 payload) {
