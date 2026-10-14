@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <limits>
 #include <span>
 
 #include <boost/container/small_vector.hpp>
@@ -700,10 +701,16 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
             if (!attribute.enabled || !stage_infos[0].loads.Generic(index)) {
                 continue;
             }
+            // An attribute that runs past its binding's stride is narrowed to fit, as the
+            // dynamic vertex input path does (VUID-vkCmdBindVertexBuffers2-pStrides-06209)
+            const u32 stride{key.state.vertex_strides[attribute.buffer]};
+            const u32 bytes_available{stride > attribute.offset ? stride - attribute.offset
+                                                                : std::numeric_limits<u32>::max()};
             vertex_attributes.push_back({
                 .location = static_cast<u32>(index),
                 .binding = attribute.buffer,
-                .format = MaxwellToVK::VertexFormat(device, attribute.Type(), attribute.Size()),
+                .format = MaxwellToVK::VertexFormat(device, attribute.Type(), attribute.Size(),
+                                                    bytes_available),
                 .offset = attribute.offset,
             });
         }

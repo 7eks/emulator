@@ -2012,12 +2012,34 @@ void RasterizerVulkan::UpdateVertexInput(Tegra::Engines::Maxwell3D::Regs& regs) 
         if (attribute.constant || binding >= max_bindings) {
             continue;
         }
+        // An attribute that runs past its binding's stride is narrowed to fit (a stride of 0 is a
+        // single vertex, nothing to fit). Said once per guest layout.
+        const u32 stride{regs.vertex_streams[binding].stride.Value()};
+        const bool past_stride{stride > attribute.offset &&
+                               attribute.offset + attribute.SizeInBytes() > stride};
+        const VkFormat format{past_stride
+                                  ? MaxwellToVK::VertexFormat(device, attribute.type, attribute.size,
+                                                              stride - attribute.offset)
+                                  : MaxwellToVK::VertexFormat(device, attribute.type, attribute.size)};
+        if (past_stride) {
+            const size_t key{(static_cast<size_t>(attribute.type.Value()) << 6) |
+                             static_cast<size_t>(attribute.size.Value())};
+            if (!reported_vertex_layouts.test(key)) {
+                reported_vertex_layouts.set(key);
+                LOG_WARNING(Render_Vulkan,
+                            "Vertex attribute {} type={} size={} ({} bytes at offset {}) runs past "
+                            "the {} byte stride of binding {}: host format {}",
+                            index, attribute.type.Value(), attribute.size.Value(),
+                            attribute.SizeInBytes(), attribute.offset.Value(), stride, binding,
+                            format);
+            }
+        }
         attributes.push_back({
             .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
             .pNext = nullptr,
             .location = index,
             .binding = binding,
-            .format = MaxwellToVK::VertexFormat(device, attribute.type, attribute.size),
+            .format = format,
             .offset = attribute.offset,
         });
     }
