@@ -554,7 +554,8 @@ void ASTCDecoderPass::Assemble(Image& image, const StagingBufferRef& map,
         const VkImageMemoryBarrier image_barrier{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .pNext = nullptr,
-            .srcAccessMask = static_cast<VkAccessFlags>(is_initialized ? VK_ACCESS_SHADER_WRITE_BIT
+            // Any earlier write to the image (a copy, a render, a shader), not only shader writes.
+            .srcAccessMask = static_cast<VkAccessFlags>(is_initialized ? VK_ACCESS_MEMORY_WRITE_BIT
                                                                        : VK_ACCESS_NONE),
             .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
             .oldLayout = is_initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
@@ -610,11 +611,13 @@ void ASTCDecoderPass::Assemble(Image& image, const StagingBufferRef& map,
         });
     }
     scheduler.Record([vk_image, aspect_mask](vk::CommandBuffer cmdbuf) {
+        // The decoded image is next sampled, copied, blitted or rendered to: make the writes
+        // visible to every kind of access.
         const VkImageMemoryBarrier image_barrier{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .pNext = nullptr,
             .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
             .newLayout = VK_IMAGE_LAYOUT_GENERAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
