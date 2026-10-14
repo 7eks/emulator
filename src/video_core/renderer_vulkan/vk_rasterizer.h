@@ -227,7 +227,6 @@ private:
     AccelerateDMA accelerate_dma;
     FenceManager fence_manager;
 
-    vk::Event wfi_event;
 
     /// Past-stride vertex layouts already logged by UpdateVertexInput, by guest type and size
     std::bitset<512> reported_vertex_layouts;

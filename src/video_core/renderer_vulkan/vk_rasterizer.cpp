@@ -288,8 +288,7 @@ RasterizerVulkan::RasterizerVulkan(Core::Frontend::EmuWindow& emu_window_, Tegra
       pipeline_cache(device_memory, device, scheduler, descriptor_pool, guest_descriptor_queue,
                      render_pass_cache, buffer_cache, texture_cache, gpu.ShaderNotify()),
       accelerate_dma(buffer_cache, texture_cache, scheduler),
-      fence_manager(*this, gpu, texture_cache, buffer_cache, query_cache, device, scheduler),
-      wfi_event(device.GetLogical().CreateEvent()) {
+      fence_manager(*this, gpu, texture_cache, buffer_cache, query_cache, device, scheduler) {
     scheduler.SetQueryCache(query_cache);
 }
 
@@ -344,6 +343,13 @@ GraphicsPipeline* RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_fun
         std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
         // update engine as channel may be different.
         pipeline->SetEngine(maxwell3d, gpu_memory);
+        // A draw that writes memory comes after a deferred WAIT_FOR_IDLE barrier, which needs
+        // the render pass ended. Before Configure, which begins the render pass for the draw.
+        const bool writes_memory =
+            pipeline->WritesMemory() || maxwell3d->regs.transform_feedback_enabled != 0;
+        if (writes_memory && scheduler.HasDeferredWaitForIdle()) {
+            scheduler.RequestOutsideRenderPassOperationContext();
+        }
 #if CITRON_ARM64_REGISTER_GUARD_SUPPORTED
         if (Settings::values.android_arm64_register_guards.GetValue()) {
             pipeline_configure_exception = {};
@@ -369,6 +375,9 @@ GraphicsPipeline* RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_fun
         if (!configure_exception) {
             UpdateDynamicStates();
 
+            if (writes_memory) {
+                scheduler.NoteMemoryWrites();
+            }
             HandleTransformFeedback();
             query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
                                       maxwell3d->regs.zpass_pixel_count_enable);
@@ -1054,16 +1063,22 @@ void RasterizerVulkan::WaitForIdle() {
 
     query_cache.NotifyWFI();
 
-    scheduler.RequestOutsideRenderPassOperationContext();
-    scheduler.Record([event = *wfi_event, flags](vk::CommandBuffer cmdbuf) {
-        cmdbuf.SetEvent(event, flags);
-        cmdbuf.WaitEvents(event, flags, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, {}, {}, {});
-    });
+    // Ending the render pass for the barrier costs a store and a reload of every attachment on a
+    // tiled GPU; the scheduler defers it while nothing in the pass needs it.
+    scheduler.WaitForIdle(flags);
     fence_manager.SignalOrdering();
 }
 
 void RasterizerVulkan::FragmentBarrier() {
-    // We already put barriers when a render pass finishes
+    // The guest wants earlier fragment output visible to later texture reads. Ending the render
+    // pass gives that only for the pass's attachments (EndRenderPass records an attachment
+    // barrier, not a memory barrier). A later draw that samples a bound attachment ends the pass
+    // in CheckFeedbackLoop, and a draw to other targets starts a new pass, so both still get that
+    // barrier. Ending the pass here as well costs a store and a reload of every attachment on a
+    // tiled GPU and orders nothing more.
+    if (Settings::values.barrier_feedback_loops.GetValue()) {
+        return;
+    }
     scheduler.RequestOutsideRenderPassOperationContext();
 }
 
