@@ -1632,8 +1632,11 @@ void Image::DownloadMemory(std::span<VkBuffer> buffers_span, std::span<size_t> o
                 .layerCount = VK_REMAINING_ARRAY_LAYERS,
             },
         };
-        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                               0, memory_write_barrier, nullptr, image_write_barrier);
+        // HOST: the CPU reads the copies once the fence signals, and a fence alone does not make
+        // device writes visible to the host (Vulkan spec, synchronization chapter).
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
+                               VK_PIPELINE_STAGE_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_HOST_BIT, 0,
+                               memory_write_barrier, nullptr, image_write_barrier);
     });
     if (is_rescaled) {
         ScaleUp(true);
