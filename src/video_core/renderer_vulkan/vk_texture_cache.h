@@ -276,9 +276,14 @@ private:
     struct StorageViews {
         std::array<vk::ImageView, Shader::NUM_TEXTURE_TYPES> signeds;
         std::array<vk::ImageView, Shader::NUM_TEXTURE_TYPES> unsigneds;
+        /// Typeless accesses, in the view's own format with the identity swizzle
+        std::array<vk::ImageView, Shader::NUM_TEXTURE_TYPES> typeless;
     };
 
     [[nodiscard]] vk::ImageView MakeView(VkFormat view_format, VkImageAspectFlags aspect);
+
+    /// A storage view in the sampled format, shaped like Handle(texture_type)
+    [[nodiscard]] vk::ImageView MakeTypelessStorageView(Shader::TextureType texture_type);
 
     const Device* device = nullptr;
     const SlotVector<Image>* slot_images = nullptr;
