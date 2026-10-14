@@ -101,9 +101,10 @@ public:
         return false;
     }
 
+    /// Whether a BGR view of an RGB image (and the reverse) is made as a view of the same image.
+    /// Without it the texture cache keeps BGR and RGB in separate images and copies between them.
     bool HasNativeBgr() const noexcept {
-        // All known Vulkan drivers can natively handle BGR textures
-        return true;
+        return native_bgr;
     }
 
     [[nodiscard]] VkBuffer GetTemporaryBuffer(size_t needed_size);
@@ -125,6 +126,7 @@ public:
     std::unique_ptr<MSAACopyPass> msaa_copy_pass;
     const Settings::ResolutionScalingInfo& resolution;
     std::array<std::vector<VkFormat>, VideoCore::Surface::MaxPixelFormat> view_formats;
+    bool native_bgr = true;
 
     static constexpr size_t indexing_slots = 8 * sizeof(size_t);
     std::array<vk::Buffer, indexing_slots> buffers{};
