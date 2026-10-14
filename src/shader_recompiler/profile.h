@@ -31,6 +31,8 @@ struct Profile {
     bool support_int8_uniform{};
     bool support_int16_uniform{};
     bool support_int64{};
+    /// Storage images in the R8, R16 and two-component formats (shaderStorageImageExtendedFormats).
+    bool support_storage_image_extended_formats{};
     bool support_vertex_instance_id{};
     bool support_float_controls{};
     bool support_separate_denorm_behavior{};

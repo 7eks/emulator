@@ -439,6 +439,11 @@ public:
         return features.bit16_storage.uniformAndStorageBuffer16BitAccess;
     }
 
+    /// Returns true if storage images can use the R8, R16 and two-component formats.
+    bool IsStorageImageExtendedFormatsSupported() const {
+        return features.features.shaderStorageImageExtendedFormats;
+    }
+
     /// Returns true if shader int16 is supported.
     bool IsShaderInt16Supported() const {
         return features.features.shaderInt16;
