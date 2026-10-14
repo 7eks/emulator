@@ -493,6 +493,10 @@ public:
 
     bool SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 size);
 
+    /// True when SynchronizeBuffer would have to upload into this range with a copy that keeps
+    /// its place in the command stream, which ends the current render pass.
+    [[nodiscard]] bool UploadNeedsOrderedCopy(Buffer& buffer, DAddr device_addr, u32 size);
+
     void UploadMemory(Buffer& buffer, u64 total_size_bytes, u64 largest_copy,
                       std::span<BufferCopy> copies);
 

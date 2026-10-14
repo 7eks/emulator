@@ -974,9 +974,16 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
         std::memset(span.data() + size, 0, shader_size - size);
         return;
     }
-    const bool use_fast_buffer = binding.buffer_id != NULL_BUFFER_ID &&
-                                 size <= channel_state->uniform_buffer_skip_cache_size &&
-                                 !memory_tracker.IsRegionGpuModified(device_addr, size);
+    // The stream path also takes a uniform buffer the guest rewrote while draws earlier in this
+    // frame still use the cached copy. Uploading it would take a copy in submission order, and a
+    // copy cannot run inside a render pass: the pass would end before the draw and start again
+    // after it, which on a tiled GPU stores and reloads every attachment. Galaxy's gameplay did
+    // this on every draw. The cached copy stays marked as modified for its other users.
+    const bool use_fast_buffer =
+        binding.buffer_id != NULL_BUFFER_ID &&
+        !memory_tracker.IsRegionGpuModified(device_addr, size) &&
+        (size <= channel_state->uniform_buffer_skip_cache_size ||
+         UploadNeedsOrderedCopy(buffer, device_addr, size));
     if (use_fast_buffer) {
         if constexpr (IS_OPENGL) {
             if (runtime.HasFastBufferSubData()) {
@@ -1702,6 +1709,33 @@ bool BufferCache<P>::SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 si
     const std::span<BufferCopy> copies_span(copies.data(), copies.size());
     UploadMemory(buffer, total_size_bytes, largest_copy, copies_span);
     return false;
+}
+
+template <class P>
+bool BufferCache<P>::UploadNeedsOrderedCopy([[maybe_unused]] Buffer& buffer,
+                                            [[maybe_unused]] DAddr device_addr,
+                                            [[maybe_unused]] u32 size) {
+    if constexpr (USE_MEMORY_MAPS_FOR_UPLOADS) {
+        // Outside a render pass an ordered copy costs nothing extra, and it brings the cached
+        // copy up to date.
+        if (size == 0 || !runtime.IsRenderPassActive() ||
+            !memory_tracker.IsRegionCpuModified(device_addr, size)) {
+            return false;
+        }
+        // The same tests MappedUploadMemory makes, over the whole range: the uploaded ranges are
+        // inside it, so this can only answer yes more often than the upload would need.
+        const u64 offset = buffer.Offset(device_addr);
+        const std::span<u8> mapped = buffer.Mapped();
+        if (offset <= mapped.size() && size <= mapped.size() - offset &&
+            Uma::CanWriteDirectly(!mapped.empty(), buffer.page_gpu_tick, offset, size,
+                                  runtime.KnownGpuTick())) {
+            return false;
+        }
+        const std::array copies{BufferCopy{.src_offset = 0, .dst_offset = offset, .size = size}};
+        return !runtime.CanReorderUpload(buffer, copies);
+    } else {
+        return false;
+    }
 }
 
 template <class P>
