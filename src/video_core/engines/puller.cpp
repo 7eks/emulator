@@ -235,18 +235,24 @@ void Puller::CallPullerMethod(const MethodCall& method_call) {
         LOG_ERROR(HW_GPU, "Special puller engine method NonStallInterrupt not implemented");
         break;
     }
-    case BufferMethods::MemOpA: {
-        LOG_ERROR(HW_GPU, "Memory Operation A");
+    case BufferMethods::MemOpA:
+    case BufferMethods::MemOpC:
+        // Operands only; the operation is triggered by MEM_OP_B or MEM_OP_D.
         break;
-    }
-    case BufferMethods::MemOpB: {
-        // Implement this better.
+    case BufferMethods::MemOpB:
+        // The pre-gm20x trigger, kept as it was for a guest that still sends it.
         rasterizer->InvalidateGPUCache();
         break;
-    }
-    case BufferMethods::MemOpC:
     case BufferMethods::MemOpD: {
-        LOG_ERROR(HW_GPU, "Memory Operation C,D");
+        // MEM_OP_D OPERATION (bits 31:27, clb06f.h; on gm20x MEM_OP_C/D replace MEM_OP_A/B).
+        // An L2 sysmem invalidate makes the GPU read what the CPU wrote, which is what
+        // InvalidateGPUCache does. MEMBAR, TLB invalidates, L2 flushes and comptag cleans need
+        // nothing here: GPU writes reach guest memory through the caches' own downloads, and the
+        // GPU page table is read directly.
+        constexpr u32 L2_SYSMEM_INVALIDATE = 0xe;
+        if ((method_call.argument >> 27) == L2_SYSMEM_INVALIDATE) {
+            rasterizer->InvalidateGPUCache();
+        }
         break;
     }
     case BufferMethods::SemaphoreAcquire: {
