@@ -1553,14 +1553,18 @@ void RasterizerVulkan::UpdateDepthBias(Tegra::Engines::Maxwell3D::Regs& regs) {
     const float clamp = regs.depth_bias_clamp;
     const float factor = regs.slope_scale_depth_bias;
 
-    // Match Maxwell/D3D UNORM depth-bias semantics when supported; default Vulkan bias can skew
-    // slope scale for dense tessellation and break shadow maps.
+    // SET_DEPTH_BIAS_CONTROL (0x1110) DEPTH_FORMAT_DEPENDENT picks the unit of the constant bias:
+    // TRUE is the depth format's own least representable value, FALSE forces the UNORM one
+    // (clb197.h). NVK maps them to these two VK_EXT_depth_bias_control representations.
     if (device.IsExtDepthBiasControlSupported()) {
+        const bool format_dependent = (regs.depth_bias_control & 1) != 0;
         const VkDepthBiasRepresentationInfoEXT representation{
             .sType = VK_STRUCTURE_TYPE_DEPTH_BIAS_REPRESENTATION_INFO_EXT,
             .pNext = nullptr,
             .depthBiasRepresentation =
-                VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORCE_UNORM_EXT,
+                format_dependent
+                    ? VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORMAT_EXT
+                    : VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORCE_UNORM_EXT,
             .depthBiasExact = device.HasExactDepthBiasControl() ? VK_TRUE : VK_FALSE,
         };
         scheduler.Record(

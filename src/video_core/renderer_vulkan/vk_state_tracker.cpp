@@ -93,6 +93,7 @@ void SetupDirtyDepthBias(Tables& tables) {
     table[OFF(depth_bias)] = DepthBias;
     table[OFF(depth_bias_clamp)] = DepthBias;
     table[OFF(slope_scale_depth_bias)] = DepthBias;
+    table[OFF(depth_bias_control)] = DepthBias;
 }
 
 void SetupDirtyBlendConstants(Tables& tables) {
