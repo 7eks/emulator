@@ -505,6 +505,9 @@ public:
 
     void DownloadBufferMemory(Buffer& buffer_id, DAddr device_addr, u64 size);
 
+    /// Writes downloaded buffer data back to guest memory, skipping device pages nothing backs
+    void WriteBackDownload(DAddr device_addr, const u8* data, u64 size);
+
     void DeleteBuffer(BufferId buffer_id, bool do_not_mark = false);
 
     [[nodiscard]] Binding StorageBufferBinding(GPUVAddr ssbo_addr, u32 cbuf_index,
@@ -574,6 +577,7 @@ public:
     u64 evicted_buffer_bytes = 0;
     u32 buffer_count = 0;
     u32 large_buffer_count = 0;
+    u64 unbacked_write_back_count = 0; ///< WriteBackDownload calls that met unmapped pages
 
     Common::VirtualBuffer<u32> page_table;
     Common::ScratchBuffer<u8> tmp_buffer;
