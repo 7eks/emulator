@@ -925,7 +925,7 @@ void EmitContext::DefineAttributeMemAccess(const Info& info) {
 }
 
 void EmitContext::DefineWriteStorageCasLoopFunction(const Info& info) {
-    if (profile.support_int8 && profile.support_int16) {
+    if (profile.support_int8_storage && profile.support_int16_storage) {
         return;
     }
     if (!info.uses_int8 && !info.uses_int16) {
@@ -1201,7 +1201,7 @@ void EmitContext::DefineConstantBuffers(const Info& info, u32& binding) {
     }
     IR::Type types{info.used_constant_buffer_types | info.used_indirect_cbuf_types};
     if (True(types & IR::Type::U8)) {
-        if (profile.support_int8) {
+        if (profile.support_int8_uniform) {
             DefineConstBuffers(*this, info, &UniformDefinitions::U8, binding, U8, 'u', sizeof(u8));
             DefineConstBuffers(*this, info, &UniformDefinitions::S8, binding, S8, 's', sizeof(s8));
         } else {
@@ -1209,7 +1209,7 @@ void EmitContext::DefineConstantBuffers(const Info& info, u32& binding) {
         }
     }
     if (True(types & IR::Type::U16)) {
-        if (profile.support_int16) {
+        if (profile.support_int16_uniform) {
             DefineConstBuffers(*this, info, &UniformDefinitions::U16, binding, U16, 'u',
                                sizeof(u16));
             DefineConstBuffers(*this, info, &UniformDefinitions::S16, binding, S16, 's',
@@ -1298,13 +1298,13 @@ void EmitContext::DefineStorageBuffers(const Info& info, u32& binding) {
 
     const IR::Type used_types{profile.support_descriptor_aliasing ? info.used_storage_buffer_types
                                                                   : IR::Type::U32};
-    if (profile.support_int8 && True(used_types & IR::Type::U8)) {
+    if (profile.support_int8_storage && True(used_types & IR::Type::U8)) {
         DefineSsbos(*this, storage_types.U8, &StorageDefinitions::U8, info, binding, U8,
                     sizeof(u8));
         DefineSsbos(*this, storage_types.S8, &StorageDefinitions::S8, info, binding, S8,
                     sizeof(u8));
     }
-    if (profile.support_int16 && True(used_types & IR::Type::U16)) {
+    if (profile.support_int16_storage && True(used_types & IR::Type::U16)) {
         DefineSsbos(*this, storage_types.U16, &StorageDefinitions::U16, info, binding, U16,
                     sizeof(u16));
         DefineSsbos(*this, storage_types.S16, &StorageDefinitions::S16, info, binding, S16,

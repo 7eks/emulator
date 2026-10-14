@@ -237,6 +237,10 @@ Profile DefaultToolProfile() {
     p.support_descriptor_aliasing = true;
     p.support_int8 = true;
     p.support_int16 = true;
+    p.support_int8_storage = true;
+    p.support_int16_storage = true;
+    p.support_int8_uniform = true;
+    p.support_int16_uniform = true;
     p.support_int64 = true;
     p.support_vertex_instance_id = false;
     p.support_float_controls = true;
