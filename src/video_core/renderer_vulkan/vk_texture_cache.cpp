@@ -1859,6 +1859,8 @@ ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::ImageViewI
         // The depth-comparison capability has no VkFormatFeatureFlags (32-bit) equivalent.
         supports_depth_comparison = false;
     }
+    supports_linear_filter = device->IsFormatSupported(
+        format_info.format, VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT, FormatType::Optimal);
     const auto image_format_info =
         MaxwellToVK::SurfaceFormat(*device, FormatType::Optimal, false, image.info.format);
     const VkImageViewUsageCreateInfo image_view_usage{
