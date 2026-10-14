@@ -360,30 +360,30 @@ VkExtent2D GetConversionExtent(const ImageView& src_image_view) {
     };
 }
 
-void BlitTransitionImageLayout(vk::CommandBuffer& cmdbuf, VkImage image, VkImageLayout target_layout,
-                           VkImageLayout source_layout = VK_IMAGE_LAYOUT_GENERAL) {
-    constexpr VkFlags flags{VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-                            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT};
+// Makes earlier writes to a colour image visible to the blit's fragment shader. The image stays
+// in GENERAL, the layout every other path and the blit's own descriptor (above) assume.
+void BlitSourceBarrier(vk::CommandBuffer& cmdbuf, VkImage image) {
     const VkImageMemoryBarrier barrier{
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         .pNext = nullptr,
-        .srcAccessMask = flags,
-        .dstAccessMask = flags,
-        .oldLayout = source_layout,
-        .newLayout = target_layout,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                         VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .image = image,
         .subresourceRange{
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .baseMipLevel = 0,
-            .levelCount = 1,
+            .levelCount = VK_REMAINING_MIP_LEVELS,
             .baseArrayLayer = 0,
-            .layerCount = 1,
+            .layerCount = VK_REMAINING_ARRAY_LAYERS,
         },
     };
-    cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                           0, barrier);
+    cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, barrier);
 }
 
 void BeginRenderPass(vk::CommandBuffer& cmdbuf, const Framebuffer* framebuffer) {
@@ -488,7 +488,7 @@ void BlitImageHelper::BlitColor(const Framebuffer* dst_framebuffer, VkImageView 
     scheduler.RequestOutsideRenderPassOperationContext();
     scheduler.Record([this, dst_framebuffer, src_image_view, src_image, src_sampler, dst_region,
                       src_region, src_size, pipeline, layout](vk::CommandBuffer cmdbuf) {
-        BlitTransitionImageLayout(cmdbuf, src_image, VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL);
+        BlitSourceBarrier(cmdbuf, src_image);
         BeginRenderPass(cmdbuf, dst_framebuffer);
         const VkDescriptorSet descriptor_set = one_texture_descriptor_allocator.Commit();
         UpdateOneTextureDescriptorSet(device, descriptor_set, src_sampler, src_image_view);
