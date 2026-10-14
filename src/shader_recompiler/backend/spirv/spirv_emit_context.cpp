@@ -1519,6 +1519,13 @@ void EmitContext::DefineImages(const Info& info, u32& binding, u32& scaling_inde
 void EmitContext::DefineInputs(const IR::Program& program) {
     const Info& info{program.info};
     const VaryingState loads{info.loads.mask | info.passthrough.mask};
+    // An integer input of a fragment shader must be Flat, and no input of a vertex shader may be
+    // (VUID-StandaloneSpirv-Flat-04744 and -06202); the other stages do not need it.
+    const auto flat_in_fragment{[&](Id id) {
+        if (stage == Stage::Fragment) {
+            Decorate(id, spv::Decoration::Flat);
+        }
+    }};
 
     if (info.uses_workgroup_id) {
         workgroup_id = DefineInput(*this, U32[3], false, spv::BuiltIn::WorkgroupId);
@@ -1535,6 +1542,7 @@ void EmitContext::DefineInputs(const IR::Program& program) {
     }
     if (info.uses_sample_id) {
         sample_id = DefineInput(*this, U32[1], false, spv::BuiltIn::SampleId);
+        flat_in_fragment(sample_id);
     }
     if (info.uses_is_helper_invocation) {
         is_helper_invocation = DefineInput(*this, U1, false, spv::BuiltIn::HelperInvocation);
@@ -1545,6 +1553,10 @@ void EmitContext::DefineInputs(const IR::Program& program) {
         subgroup_mask_le = DefineInput(*this, U32[4], false, spv::BuiltIn::SubgroupLeMaskKHR);
         subgroup_mask_gt = DefineInput(*this, U32[4], false, spv::BuiltIn::SubgroupGtMaskKHR);
         subgroup_mask_ge = DefineInput(*this, U32[4], false, spv::BuiltIn::SubgroupGeMaskKHR);
+        for (const Id mask : {subgroup_mask_eq, subgroup_mask_lt, subgroup_mask_le,
+                              subgroup_mask_gt, subgroup_mask_ge}) {
+            flat_in_fragment(mask);
+        }
     }
     if (info.uses_fswzadd || info.uses_subgroup_invocation_id || info.uses_subgroup_shuffles ||
         (profile.warp_size_potentially_larger_than_guest &&
@@ -1552,7 +1564,7 @@ void EmitContext::DefineInputs(const IR::Program& program) {
         AddCapability(spv::Capability::GroupNonUniform);
         subgroup_local_invocation_id =
             DefineInput(*this, U32[1], false, spv::BuiltIn::SubgroupLocalInvocationId);
-        Decorate(subgroup_local_invocation_id, spv::Decoration::Flat);
+        flat_in_fragment(subgroup_local_invocation_id);
     }
     if (info.uses_fswzadd) {
         const Id f32_one{Const(1.0f)};
@@ -1564,11 +1576,12 @@ void EmitContext::DefineInputs(const IR::Program& program) {
     }
     if (loads[IR::Attribute::PrimitiveId]) {
         primitive_id = DefineInput(*this, U32[1], false, spv::BuiltIn::PrimitiveId);
+        flat_in_fragment(primitive_id);
     }
     if (loads[IR::Attribute::Layer]) {
         AddCapability(spv::Capability::Geometry);
         layer = DefineInput(*this, U32[1], false, spv::BuiltIn::Layer);
-        Decorate(layer, spv::Decoration::Flat);
+        flat_in_fragment(layer);
     }
     if (loads.AnyComponent(IR::Attribute::PositionX)) {
         const bool is_fragment{stage == Stage::Fragment};
