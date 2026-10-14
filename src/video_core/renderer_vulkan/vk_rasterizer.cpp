@@ -504,7 +504,15 @@ void RasterizerVulkan::Draw(bool is_indexed, u32 instance_count) {
         const auto& draw_state = maxwell3d->draw_manager->GetDrawState();
         const u32 num_instances{instance_count};
         const DrawParams draw_params{MakeDrawParams(draw_state, num_instances, is_indexed)};
-        scheduler.Record([draw_params](vk::CommandBuffer cmdbuf) {
+        // A pipeline whose build failed binds nothing (GraphicsPipeline::ConfigureDraw), so its
+        // draws are dropped too; otherwise they would run with the previously bound pipeline.
+        // An async build is only known to have failed on the worker thread, hence the check
+        // there.
+        const GraphicsPipeline* const draw_pipeline{pipeline_cache.CurrentGraphicsPipeline()};
+        scheduler.Record([draw_params, draw_pipeline](vk::CommandBuffer cmdbuf) {
+            if (draw_pipeline->IsFailed()) {
+                return;
+            }
             if (draw_params.is_indexed) {
                 cmdbuf.DrawIndexed(draw_params.num_vertices, draw_params.num_instances,
                                    draw_params.first_index, draw_params.base_vertex,
@@ -531,9 +539,14 @@ void RasterizerVulkan::DrawIndirect() {
         const auto indirect_buffer = buffer_cache.GetDrawIndirectBuffer();
         const auto& buffer = indirect_buffer.first;
         const auto& offset = indirect_buffer.second;
+        // Dropped with a failed pipeline, as in Draw.
+        const GraphicsPipeline* const draw_pipeline{pipeline_cache.CurrentGraphicsPipeline()};
         if (params.is_byte_count) {
-            scheduler.Record([buffer_obj = buffer->Handle(), offset,
-                              stride = params.stride](vk::CommandBuffer cmdbuf) {
+            scheduler.Record([buffer_obj = buffer->Handle(), offset, stride = params.stride,
+                              draw_pipeline](vk::CommandBuffer cmdbuf) {
+                if (draw_pipeline->IsFailed()) {
+                    return;
+                }
                 cmdbuf.DrawIndirectByteCountEXT(1, 0, buffer_obj, offset, 0,
                                                 static_cast<u32>(stride));
             });
@@ -544,8 +557,11 @@ void RasterizerVulkan::DrawIndirect() {
             const auto& draw_buffer = count.first;
             const auto& offset_base = count.second;
             scheduler.Record([draw_buffer_obj = draw_buffer->Handle(),
-                              buffer_obj = buffer->Handle(), offset_base, offset,
-                              params](vk::CommandBuffer cmdbuf) {
+                              buffer_obj = buffer->Handle(), offset_base, offset, params,
+                              draw_pipeline](vk::CommandBuffer cmdbuf) {
+                if (draw_pipeline->IsFailed()) {
+                    return;
+                }
                 if (params.is_indexed) {
                     cmdbuf.DrawIndexedIndirectCount(
                         buffer_obj, offset, draw_buffer_obj, offset_base,
@@ -558,7 +574,11 @@ void RasterizerVulkan::DrawIndirect() {
             });
             return;
         }
-        scheduler.Record([buffer_obj = buffer->Handle(), offset, params](vk::CommandBuffer cmdbuf) {
+        scheduler.Record([buffer_obj = buffer->Handle(), offset, params,
+                          draw_pipeline](vk::CommandBuffer cmdbuf) {
+            if (draw_pipeline->IsFailed()) {
+                return;
+            }
             if (params.is_indexed) {
                 cmdbuf.DrawIndexedIndirect(buffer_obj, offset,
                                            static_cast<u32>(params.max_draw_counts),
