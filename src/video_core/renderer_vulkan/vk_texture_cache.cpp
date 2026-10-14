@@ -913,6 +913,11 @@ TextureCacheRuntime::TextureCacheRuntime(const Device& device_, Scheduler& sched
         msaa_copy_pass = std::make_unique<MSAACopyPass>(
             device, scheduler, descriptor_pool, staging_buffer_pool, compute_pass_descriptor_queue);
     }
+    // Turnip stores an image linear, not tiled, when its mutable format list holds a format with
+    // a component swap such as B8G8R8A8 (tu_image.cc: format_list_has_swaps sets
+    // force_linear_tile when the formats are not all UBWC compatible). Every RGBA8 image would get
+    // B8G8R8A8 in its list, so on Turnip BGR and RGB are kept as separate images.
+    native_bgr = device.GetDriverID() != VK_DRIVER_ID_MESA_TURNIP;
     if (!device.IsKhrImageFormatListSupported()) {
         return;
     }
@@ -928,7 +933,8 @@ TextureCacheRuntime::TextureCacheRuntime(const Device& device_, Scheduler& sched
         }
         for (size_t index_b = 0; index_b < VideoCore::Surface::MaxPixelFormat; index_b++) {
             const auto view_format = static_cast<PixelFormat>(index_b);
-            if (VideoCore::Surface::IsViewCompatible(image_format, view_format, false, true)) {
+            if (VideoCore::Surface::IsViewCompatible(image_format, view_format, false,
+                                                     native_bgr)) {
                 const auto view_info =
                     MaxwellToVK::SurfaceFormat(device, FormatType::Optimal, true, view_format);
                 view_formats[index_a].push_back(view_info.format);
