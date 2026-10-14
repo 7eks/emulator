@@ -158,7 +158,7 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
                 const auto& table{cbufs[desc.table_cbuf_index]};
                 const bool enabled{((qmd.const_buffer_enable_mask >> desc.table_cbuf_index) & 1) !=
                                    0};
-                const u32 entry{(word << desc.table_shift) + desc.table_base};
+                const u32 entry{word * desc.table_scale + desc.table_base};
                 word = enabled && entry + sizeof(u16) <= table.size
                            ? gpu_memory.Read<u16>(table.Address() + entry)
                            : 0;

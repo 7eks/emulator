@@ -391,7 +391,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
                 if (desc.indirect) {
                     // The word is an index. The texture number is the 16-bit table entry.
                     const auto& table{cbufs[desc.table_cbuf_index]};
-                    const u32 entry{(word << desc.table_shift) + desc.table_base};
+                    const u32 entry{word * desc.table_scale + desc.table_base};
                     word = table.enabled && entry + sizeof(u16) <= table.size
                                ? gpu_memory->Read<u16>(table.address + entry)
                                : 0;
