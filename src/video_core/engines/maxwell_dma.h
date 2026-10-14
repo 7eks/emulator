@@ -274,6 +274,14 @@ private:
 
     void CopyBlockLinearToPitch();
 
+    /// Puts the widths and origins of a copy between an image and a buffer in bytes, as the GPU
+    /// path (AccelerateDMAInterface::ImageToBuffer and BufferToImage) takes them. Without
+    /// REMAP_ENABLE they are bytes already. With it they count elements; a remap that keeps every
+    /// component in place is a byte copy of element-size times as many bytes. Returns false for
+    /// any other remap, or when a scaled origin does not fit its 16-bit field.
+    [[nodiscard]] bool ScaleForPlainCopy(DMA::Parameters& image_params, DMA::ImageCopy& copy_info,
+                                         u32& buffer_width) const;
+
     void CopyPitchToBlockLinear();
 
     void CopyBlockLinearToBlockLinear();

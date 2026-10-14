@@ -315,6 +315,26 @@ void MaxwellDMA::CopyRemappedRect(bool is_src_pitch, bool is_dst_pitch) {
                    dst.block_size.depth, dst_row);
 }
 
+bool MaxwellDMA::ScaleForPlainCopy(DMA::Parameters& image_params, DMA::ImageCopy& copy_info,
+                                   u32& buffer_width) const {
+    if (regs.launch_dma.remap_enable == 0) {
+        return true;
+    }
+    if (!regs.remap_const.IsPlainCopy()) {
+        return false;
+    }
+    const u32 element_size = regs.remap_const.SrcElementSize();
+    const u32 origin_x = image_params.origin.x.Value() * element_size;
+    if (origin_x > 0xFFFF) {
+        return false;
+    }
+    image_params.width *= element_size;
+    image_params.origin.x.Assign(origin_x);
+    copy_info.length_x *= element_size;
+    buffer_width *= element_size;
+    return true;
+}
+
 void MaxwellDMA::CopyBlockLinearToPitch() {
     //UNIMPLEMENTED_IF(regs.launch_dma.remap_enable != 0);
 
@@ -332,8 +352,12 @@ void MaxwellDMA::CopyBlockLinearToPitch() {
     DMA::ImageCopy copy_info{};
     copy_info.length_x = regs.line_length_in;
     copy_info.length_y = regs.line_count;
+    // The GPU path takes widths and origins in bytes (bytes_per_pixel 1). With REMAP_ENABLE they
+    // count elements; a remap that keeps every component in place is a byte copy with them scaled
+    // by the element size.
     auto& accelerate = rasterizer->AccessAccelerateDMA();
-    if (accelerate.ImageToBuffer(copy_info, src_operand, dst_operand)) {
+    if (ScaleForPlainCopy(src_operand.params, copy_info, dst_operand.width) &&
+        accelerate.ImageToBuffer(copy_info, src_operand, dst_operand)) {
         return;
     }
 
@@ -405,8 +429,10 @@ void MaxwellDMA::CopyPitchToBlockLinear() {
     DMA::ImageCopy copy_info{};
     copy_info.length_x = regs.line_length_in;
     copy_info.length_y = regs.line_count;
+    // The GPU path takes widths and origins in bytes (bytes_per_pixel 1); see ScaleForPlainCopy.
     auto& accelerate = rasterizer->AccessAccelerateDMA();
-    if (accelerate.BufferToImage(copy_info, src_operand, dst_operand)) {
+    if (ScaleForPlainCopy(dst_operand.params, copy_info, src_operand.width) &&
+        accelerate.BufferToImage(copy_info, src_operand, dst_operand)) {
         return;
     }
 

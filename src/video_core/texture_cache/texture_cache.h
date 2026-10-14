@@ -1547,6 +1547,10 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
             gpu_addr = solution->gpu_addr;
             cpu_addr = solution->cpu_addr;
             new_info.resources = solution->resources;
+            // The new image takes over this memory, including its first DMA download (see
+            // DmaImageId). A game that maps the same render target at a new GPU address every
+            // frame would otherwise get a full CPU sync for every DMA download.
+            new_info.dma_downloaded |= overlap.info.dma_downloaded;
             join_overlap_ids.push_back(overlap_id);
             join_copies_to_do.emplace_back(JoinCopy{false, overlap_id});
             return;
@@ -1574,6 +1578,7 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
             }
             if (overlap.gpu_addr == gpu_addr && overlap.guest_size_bytes == size_bytes) {
                 join_ignore_textures.insert(overlap_id);
+                new_info.dma_downloaded |= overlap.info.dma_downloaded;
             }
         }
     };
