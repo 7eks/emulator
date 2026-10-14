@@ -824,6 +824,11 @@ public:
         return properties.properties.limits.maxClipDistances;
     }
 
+    /// Input locations a geometry shader may use (VUID-RuntimeSpirv-Location-06272)
+    u32 GetMaxGeometryInputLocations() const {
+        return properties.properties.limits.maxGeometryInputComponents / 4;
+    }
+
     bool SupportsConditionalBarriers() const {
         return supports_conditional_barriers;
     }
