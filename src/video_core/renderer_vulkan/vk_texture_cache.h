@@ -128,6 +128,11 @@ public:
 
     static constexpr size_t indexing_slots = 8 * sizeof(size_t);
     std::array<vk::Buffer, indexing_slots> buffers{};
+
+    /// Custom border colour slots handed to samplers so far (never given back, see Sampler).
+    u32 custom_border_samplers{};
+    /// Whether running out of those slots has been logged.
+    bool custom_border_budget_reported{};
 };
 
 class Image : public VideoCommon::ImageBase {
