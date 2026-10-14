@@ -86,6 +86,11 @@ void MaxwellDMA::Launch() {
         const bool is_src_pitch = launch.src_memory_layout == LaunchDMA::MemoryLayout::PITCH;
         const bool is_dst_pitch = launch.dst_memory_layout == LaunchDMA::MemoryLayout::PITCH;
         memory_manager.FlushCaching();
+        if (!remap_plain && !(is_src_pitch && is_dst_pitch)) {
+            CopyRemappedRect(is_src_pitch, is_dst_pitch);
+            ReleaseSemaphore();
+            return;
+        }
         if (!is_src_pitch && !is_dst_pitch) {
             // If both the source and the destination are in block layout, assert.
             CopyBlockLinearToBlockLinear();
@@ -247,6 +252,67 @@ void MaxwellDMA::CopyRemapped(GPUVAddr src, GPUVAddr dst, u32 count) {
     Tegra::Memory::GpuGuestMemoryScoped<u8, Tegra::Memory::GuestMemoryFlags::SafeReadCachedWrite>
         destination(memory_manager, dst, dst_size, &write_buffer);
     remap.RemapElements(intermediate_buffer, std::span<u8>(destination.data(), dst_size), count);
+}
+
+void MaxwellDMA::CopyRemappedRect(bool is_src_pitch, bool is_dst_pitch) {
+    // With REMAP_ENABLE the surface widths and origins count elements as well: source elements on
+    // the source side and destination elements on the destination side, as nvk_cmd_copy.c
+    // (nouveau_copy_rect) programs them and as a Switch copies (maxwell-raw 3, dma_block cases 1
+    // and 3: origin x 1 is 8 bytes for 8-byte elements on either side).
+    const RemapConst& remap = regs.remap_const;
+    const DMA::Parameters& src = regs.src_params;
+    const DMA::Parameters& dst = regs.dst_params;
+    const u32 count = regs.line_length_in;
+    const u32 lines = regs.line_count;
+    const u32 src_row = count * remap.SrcElementSize();
+    const u32 dst_row = count * remap.DstElementSize();
+
+    intermediate_buffer.resize_destructive(static_cast<size_t>(src_row) * lines);
+    if (is_src_pitch) {
+        for (u32 line = 0; line < lines; ++line) {
+            const size_t offset = static_cast<size_t>(line) * src_row;
+            memory_manager.ReadBlock(regs.offset_in + static_cast<size_t>(line) * regs.pitch_in,
+                                     intermediate_buffer.data() + offset, src_row);
+        }
+    } else {
+        const size_t src_size = CalculateSize(true, remap.SrcElementSize(), src.width, src.height,
+                                              src.depth, src.block_size.height,
+                                              src.block_size.depth);
+        Tegra::Memory::GpuGuestMemory<u8, Tegra::Memory::GuestMemoryFlags::SafeRead> source(
+            memory_manager, regs.offset_in, src_size, &read_buffer);
+        UnswizzleSubrect(intermediate_buffer, source, remap.SrcElementSize(), src.width, src.height,
+                         src.depth, src.origin.x, src.origin.y, count, lines, src.block_size.height,
+                         src.block_size.depth, src_row);
+    }
+
+    // The destination is read first: NO_WRITE components keep its bytes.
+    if (is_dst_pitch) {
+        for (u32 line = 0; line < lines; ++line) {
+            Tegra::Memory::GpuGuestMemoryScoped<u8,
+                                                Tegra::Memory::GuestMemoryFlags::SafeReadCachedWrite>
+                destination(memory_manager,
+                            regs.offset_out + static_cast<size_t>(line) * regs.pitch_out, dst_row,
+                            &write_buffer);
+            remap.RemapElements(std::span<const u8>(intermediate_buffer).subspan(
+                                    static_cast<size_t>(line) * src_row, src_row),
+                                std::span<u8>(destination.data(), dst_row), count);
+        }
+        return;
+    }
+    const size_t dst_size =
+        CalculateSize(true, remap.DstElementSize(), dst.width, dst.height, dst.depth,
+                      dst.block_size.height, dst.block_size.depth);
+    Tegra::Memory::GpuGuestMemoryScoped<u8, Tegra::Memory::GuestMemoryFlags::SafeReadCachedWrite>
+        destination(memory_manager, regs.offset_out, dst_size, &write_buffer);
+    // read_buffer is free again here: the source view above has gone.
+    read_buffer.resize_destructive(static_cast<size_t>(dst_row) * lines);
+    UnswizzleSubrect(read_buffer, destination, remap.DstElementSize(), dst.width, dst.height,
+                     dst.depth, dst.origin.x, dst.origin.y, count, lines, dst.block_size.height,
+                     dst.block_size.depth, dst_row);
+    remap.RemapElements(intermediate_buffer, read_buffer, static_cast<size_t>(count) * lines);
+    SwizzleSubrect(destination, read_buffer, remap.DstElementSize(), dst.width, dst.height,
+                   dst.depth, dst.origin.x, dst.origin.y, count, lines, dst.block_size.height,
+                   dst.block_size.depth, dst_row);
 }
 
 void MaxwellDMA::CopyBlockLinearToPitch() {
