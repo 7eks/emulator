@@ -424,6 +424,21 @@ public:
         return features.features.shaderInt64;
     }
 
+    /// 8/16-bit access to storage buffers, and to uniform buffers (the "uniformAndStorage"
+    /// features). Turnip reports the uniform ones as false (Mesa tu_device.cc).
+    bool IsStorageBuffer8BitAccessSupported() const {
+        return features.bit8_storage.storageBuffer8BitAccess;
+    }
+    bool IsStorageBuffer16BitAccessSupported() const {
+        return features.bit16_storage.storageBuffer16BitAccess;
+    }
+    bool IsUniformBuffer8BitAccessSupported() const {
+        return features.bit8_storage.uniformAndStorageBuffer8BitAccess;
+    }
+    bool IsUniformBuffer16BitAccessSupported() const {
+        return features.bit16_storage.uniformAndStorageBuffer16BitAccess;
+    }
+
     /// Returns true if shader int16 is supported.
     bool IsShaderInt16Supported() const {
         return features.features.shaderInt16;
