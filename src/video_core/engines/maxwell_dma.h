@@ -281,6 +281,10 @@ private:
     /// A pitch copy of count elements through SET_REMAP_COMPONENTS.
     void CopyRemapped(GPUVAddr src, GPUVAddr dst, u32 count);
 
+    /// A multi-line copy through SET_REMAP_COMPONENTS that is not a plain copy, with a block
+    /// linear source or destination.
+    void CopyRemappedRect(bool is_src_pitch, bool is_dst_pitch);
+
     void ReleaseSemaphore();
 
     void ConsumeSinkImpl() override;
