@@ -13,6 +13,7 @@
 
 #include "common/alignment.h"
 #include "common/settings.h"
+#include "shader_recompiler/shader_info.h"
 #include "video_core/cache_memory_pressure.h"
 #include "video_core/control/channel_state.h"
 #include "video_core/dirty_flags.h"
@@ -534,11 +535,20 @@ void TextureCache<P>::FillImageViews(DescriptorTable<TICEntry>& table,
         for (ImageViewInOut& view : views) {
             view.id = VisitImageView(table, cached_image_view_ids, view.index);
             if constexpr (has_blacklists) {
-                if (view.blacklist && view.id != NULL_IMAGE_VIEW_ID) {
-                    const ImageViewBase& image_view{slot_image_views[view.id]};
-                    auto& image = slot_images[image_view.image_id];
-                    has_blacklisted |= ScaleDown(image);
-                    image.scale_rating = 0;
+                if (view.id != NULL_IMAGE_VIEW_ID && (view.blacklist || view.storage_format != 0)) {
+                    auto& image = slot_images[slot_image_views[view.id].image_id];
+                    if (view.blacklist) {
+                        has_blacklisted |= ScaleDown(image);
+                        image.scale_rating = 0;
+                    }
+                    // A typed storage view is made when the descriptors are written, after this,
+                    // so its format has to be in the image's list by then. Widening drops the
+                    // image's views and sets has_deleted_images: the views are looked up again.
+                    const auto storage_format =
+                        static_cast<Shader::ImageFormat>(view.storage_format);
+                    if (image.NeedsWideStorageViews(storage_format)) {
+                        WidenViewFormats(image);
+                    }
                 }
             }
         }
@@ -695,6 +705,9 @@ bool TextureCache<P>::BlitImage(const Tegra::Engines::Fermi2D::Surface& dst,
 
     PrepareImage(src_id, false, false);
     PrepareImage(dst_id, true, false);
+    // Both views are looked up below and used together; neither lookup may drop the other
+    PrepareViewFormat(src_id, images.src_format);
+    PrepareViewFormat(dst_id, images.dst_format);
 
     Image& dst_image = slot_images[dst_id];
     Image& src_image = slot_images[src_id];
@@ -1346,6 +1359,11 @@ void TextureCache<P>::InvalidateScale(Image& image) {
     if (image.scale_tick <= frame_tick) {
         image.scale_tick = frame_tick + 1;
     }
+    InvalidateImageViews(image);
+}
+
+template <class P>
+void TextureCache<P>::InvalidateImageViews(Image& image) {
     const std::span<const ImageViewId> image_view_ids = image.image_view_ids;
     auto& dirty = maxwell3d->dirty.flags;
     dirty[Dirty::RenderTargets] = true;
@@ -2122,10 +2140,29 @@ ImageViewId TextureCache<P>::FindOrEmplaceImageView(ImageId image_id, const Imag
     if (const ImageViewId image_view_id = image.FindView(info); image_view_id) {
         return image_view_id;
     }
+    if (image.NeedsWideViews(info.format)) {
+        WidenViewFormats(image);
+    }
     const ImageViewId image_view_id =
         slot_image_views.insert(runtime, info, image_id, image, slot_images);
     image.InsertView(info, image_view_id);
     return image_view_id;
+}
+
+template <class P>
+void TextureCache<P>::PrepareViewFormat(ImageId image_id, PixelFormat format) {
+    Image& image = slot_images[image_id];
+    if (image.NeedsWideViews(format)) {
+        WidenViewFormats(image);
+    }
+}
+
+template <class P>
+void TextureCache<P>::WidenViewFormats(Image& image) {
+    if (image.WidenViewFormats()) {
+        LOG_DEBUG(HW_GPU, "Image at {:#x} made again with every view format", image.gpu_addr);
+        InvalidateImageViews(image);
+    }
 }
 
 template <class P>

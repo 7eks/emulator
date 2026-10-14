@@ -3,7 +3,10 @@
 
 #pragma once
 
+#include <deque>
+#include <memory>
 #include <span>
+#include <vector>
 
 #include "video_core/texture_cache/texture_cache_base.h"
 
@@ -46,6 +49,7 @@ public:
                                  RenderPassCache& render_pass_cache_,
                                  DescriptorPool& descriptor_pool,
                                  ComputePassDescriptorQueue& compute_pass_descriptor_queue);
+    ~TextureCacheRuntime();
 
     void Finish();
 
@@ -110,9 +114,23 @@ public:
     [[nodiscard]] VkBuffer GetTemporaryBuffer(size_t needed_size);
     void CleanupUnusedBuffers();
 
-    std::span<const VkFormat> ViewFormats(PixelFormat format) {
-        return view_formats[static_cast<std::size_t>(format)];
+    /// Formats an image of this format may be viewed as. The narrow list holds only the formats
+    /// with the same components (A8B8G8R8 UNORM, SNORM, SINT, UINT and SRGB for example), so a
+    /// driver can keep framebuffer compression on the image; the wide list holds every format a
+    /// view of it may need.
+    std::span<const VkFormat> ViewFormats(PixelFormat format, bool wide) const {
+        const auto index = static_cast<std::size_t>(format);
+        return wide ? view_formats[index] : narrow_view_formats[index];
     }
+
+    /// Keeps the replaced images of an image that was made again with the wide format list (and
+    /// what was made from them) until the GPU and the delayed view destruction are done with them.
+    void RetireImage(vk::Image original, vk::Image scaled,
+                     std::vector<vk::ImageView> storage_views,
+                     std::unique_ptr<Framebuffer> scale_framebuffer,
+                     std::unique_ptr<ImageView> scale_view,
+                     std::unique_ptr<Framebuffer> normal_framebuffer,
+                     std::unique_ptr<ImageView> normal_view);
 
     void BarrierFeedbackLoop();
 
@@ -126,7 +144,12 @@ public:
     std::unique_ptr<MSAACopyPass> msaa_copy_pass;
     const Settings::ResolutionScalingInfo& resolution;
     std::array<std::vector<VkFormat>, VideoCore::Surface::MaxPixelFormat> view_formats;
+    std::array<std::vector<VkFormat>, VideoCore::Surface::MaxPixelFormat> narrow_view_formats;
     bool native_bgr = true;
+
+    struct RetiredImage;
+    std::deque<std::unique_ptr<RetiredImage>> retired_images;
+    u64 frame_count{};
 
     static constexpr size_t indexing_slots = 8 * sizeof(size_t);
     std::array<vk::Buffer, indexing_slots> buffers{};
@@ -190,8 +213,24 @@ public:
     // Allows cache GC to defer readbacks that may allocate scaling helper resources.
     bool NeedsScaleHelper() const;
 
+    /// Whether a view in this format needs the image made again with the wide format list.
+    [[nodiscard]] bool NeedsWideViews(PixelFormat view_format) const;
+
+    /// Same for a typed storage view (Shader::ImageFormat other than Typeless).
+    [[nodiscard]] bool NeedsWideStorageViews(Shader::ImageFormat storage_format) const;
+
+    /// Makes the image again with the wide format list and copies its contents. Every view of
+    /// the old image has to be dropped by the caller. Returns false when it already had it.
+    bool WidenViewFormats();
+
 private:
     bool BlitScaleHelper(bool scale_up);
+
+    [[nodiscard]] bool NeedsWideVkFormat(VkFormat view_format) const;
+
+    [[nodiscard]] VideoCommon::ImageInfo ScaledInfo() const;
+
+    void MakeStorageImageViews();
 
     Scheduler* scheduler{};
     TextureCacheRuntime* runtime{};
@@ -200,6 +239,8 @@ private:
     std::vector<vk::ImageView> storage_image_views;
     VkImageAspectFlags aspect_mask = 0;
     bool initialized = false;
+    /// Whether the image was made with the wide view format list
+    bool wide_view_formats = false;
     vk::Image scaled_image{};
     VkImage current_image{};
 

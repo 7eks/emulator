@@ -414,24 +414,26 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
             }
             return TexturePair(gpu_memory->Read<u32>(addr), via_header_index);
         }};
-        const auto add_image{[&](const auto& desc, bool blacklist) LAMBDA_FORCEINLINE {
+        const auto add_image{[&](const auto& desc, bool blacklist,
+                                 Shader::ImageFormat storage_format) LAMBDA_FORCEINLINE {
             for (u32 index = 0; index < desc.count; ++index) {
                 const auto handle{read_handle(desc, index)};
                 views.push_back({
                     .index = handle.first,
                     .blacklist = blacklist,
                     .id = {},
+                    .storage_format = static_cast<u32>(storage_format),
                 });
             }
         }};
         if constexpr (Spec::has_texture_buffers) {
             for (const auto& desc : info.texture_buffer_descriptors) {
-                add_image(desc, false);
+                add_image(desc, false, Shader::ImageFormat::Typeless);
             }
         }
         if constexpr (Spec::has_image_buffers) {
             for (const auto& desc : info.image_buffer_descriptors) {
-                add_image(desc, false);
+                add_image(desc, false, Shader::ImageFormat::Typeless);
             }
         }
         for (const auto& desc : info.texture_descriptors) {
@@ -443,7 +445,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         }
         if constexpr (Spec::has_images) {
             for (const auto& desc : info.image_descriptors) {
-                add_image(desc, desc.is_written);
+                add_image(desc, desc.is_written, desc.format);
             }
         }
     }};
