@@ -1053,6 +1053,32 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
         define(&StorageDefinitions::U32x2, storage_types.U32x2, U32[2], sizeof(u32[2]));
     std::tie(load_global_func_u32x4, write_global_func_u32x4) =
         define(&StorageDefinitions::U32x4, storage_types.U32x4, U32[4], sizeof(u32[4]));
+    if (!info.stores_global_memory) {
+        return;
+    }
+    // Atomics take the same storage buffer search as the loads and writes above and return the
+    // old value (0 when no storage buffer holds the address, as a load returns).
+    using AtomicFunc = Id (Sirit::Module::*)(Id, Id, Id, Id, Id);
+    constexpr std::array<AtomicFunc, static_cast<size_t>(GlobalAtomicOp::Count)> atomic_ops{
+        &Sirit::Module::OpAtomicIAdd, &Sirit::Module::OpAtomicSMin, &Sirit::Module::OpAtomicUMin,
+        &Sirit::Module::OpAtomicSMax, &Sirit::Module::OpAtomicUMax, &Sirit::Module::OpAtomicAnd,
+        &Sirit::Module::OpAtomicOr, &Sirit::Module::OpAtomicXor, &Sirit::Module::OpAtomicExchange,
+    };
+    const Id scope{Const(static_cast<u32>(spv::Scope::Device))};
+    const Id function_type{TypeFunction(U32[1], U64, U32[1])};
+    for (size_t op = 0; op < atomic_ops.size(); ++op) {
+        const Id func_id{OpFunction(U32[1], spv::FunctionControlMask::MaskNone, function_type)};
+        const Id addr{OpFunctionParameter(U64)};
+        const Id value{OpFunctionParameter(U32[1])};
+        define_body(&StorageDefinitions::U32, addr, storage_types.U32.element, 2,
+                    [&](Id ssbo_pointer) {
+                        OpReturnValue(
+                            (this->*atomic_ops[op])(U32[1], ssbo_pointer, scope, zero, value));
+                    });
+        OpReturnValue(zero);
+        OpFunctionEnd();
+        global_atomic_func_u32[op] = func_id;
+    }
 }
 
 void EmitContext::DefineRescalingInput(const Info& info) {
