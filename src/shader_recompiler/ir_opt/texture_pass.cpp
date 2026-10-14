@@ -902,6 +902,22 @@ bool IsTexturePixelFormatInteger(Environment& env, const ConstBufferAddr& cbuf) 
     return env.IsTexturePixelFormatInteger(GetTextureHandle(env, cbuf));
 }
 
+// A storage image accessed with a sized format (SULD.D, SUST.D, SUATOM) is bound through a view
+// of that format (ImageView::StorageView), so the format decides whether it is integer. A typeless
+// access, and every image buffer, uses a view in the texture's own format.
+bool IsImageInteger(Environment& env, const ConstBufferAddr& cbuf, ImageFormat format) {
+    switch (format) {
+    case ImageFormat::Typeless:
+        return IsTexturePixelFormatInteger(env, cbuf);
+    case ImageFormat::R32_SFLOAT:
+    case ImageFormat::R32G32_SFLOAT:
+    case ImageFormat::R32G32B32A32_SFLOAT:
+        return false;
+    default:
+        return true;
+    }
+}
+
 class Descriptors {
 public:
     explicit Descriptors(TextureBufferDescriptors& texture_buffer_descriptors_,
@@ -1156,13 +1172,12 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
             }
             const bool is_written{inst->GetOpcode() != IR::Opcode::ImageRead};
             const bool is_read{inst->GetOpcode() != IR::Opcode::ImageWrite};
-            const bool is_integer{IsTexturePixelFormatInteger(env, cbuf)};
             if (flags.type == TextureType::Buffer) {
                 index = descriptors.Add(ImageBufferDescriptor{
                     .format = flags.image_format,
                     .is_written = is_written,
                     .is_read = is_read,
-                    .is_integer = is_integer,
+                    .is_integer = IsTexturePixelFormatInteger(env, cbuf),
                     .cbuf_index = cbuf.index,
                     .cbuf_offset = cbuf.offset,
                     .count = count,
@@ -1174,7 +1189,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .format = flags.image_format,
                     .is_written = is_written,
                     .is_read = is_read,
-                    .is_integer = is_integer,
+                    .is_integer = IsImageInteger(env, cbuf, flags.image_format),
                     .cbuf_index = cbuf.index,
                     .cbuf_offset = cbuf.offset,
                     .count = count,
