@@ -2208,10 +2208,10 @@ void Framebuffer::CreateFramebuffer(TextureCacheRuntime& runtime,
         images[num_images] = color_buffer->ImageHandle();
         image_ranges[num_images] = MakeFramebufferBarrierRange(color_buffer);
         rt_map[index] = num_images;
+        num_color_attachments = static_cast<u32>(index + 1);
         samples = color_buffer->Samples();
         ++num_images;
     }
-    const size_t num_colors = attachments.size();
     if (depth_buffer) {
         width = std::min(width, is_rescaled ? resolution.ScaleUp(depth_buffer->size.width)
                                             : depth_buffer->size.width);
@@ -2236,7 +2236,6 @@ void Framebuffer::CreateFramebuffer(TextureCacheRuntime& runtime,
     render_area.width = std::min(render_area.width, width);
     render_area.height = std::min(render_area.height, height);
 
-    num_color_buffers = static_cast<u32>(num_colors);
     framebuffer = runtime.device.GetLogical().CreateFramebuffer({
         .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
         .pNext = nullptr,

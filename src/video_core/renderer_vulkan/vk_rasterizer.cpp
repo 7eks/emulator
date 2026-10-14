@@ -692,7 +692,14 @@ void RasterizerVulkan::Clear(u32 layer_count) {
                               static_cast<s32>(clear_rect.rect.extent.width),
                          .y = clear_rect.rect.offset.y +
                               static_cast<s32>(clear_rect.rect.extent.height)}};
-            blit_image.ClearColor(framebuffer, color_mask, regs.clear_color, dst_region);
+            const auto format = VideoCore::Surface::PixelFormatFromRenderTargetFormat(
+                regs.rt[color_attachment].format);
+            const ClearColorType type = !IsPixelFormatInteger(format) ? ClearColorType::Float
+                                        : IsPixelFormatSignedInteger(format)
+                                            ? ClearColorType::Sint
+                                            : ClearColorType::Uint;
+            blit_image.ClearColor(framebuffer, color_attachment, color_mask, type,
+                                  std::bit_cast<std::array<u32, 4>>(regs.clear_color), dst_region);
         }
     }
 
