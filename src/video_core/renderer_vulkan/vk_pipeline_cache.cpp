@@ -3,11 +3,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <cstddef>
 #include <fstream>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <span>
 #include <thread>
 #include <vector>
@@ -176,6 +178,43 @@ Shader::FragmentOutputType GetFragmentOutputType(u8 encoded_format) {
     return VideoCore::Surface::IsPixelFormatSignedInteger(pixel_format)
                ? Shader::FragmentOutputType::SignedInt
                : Shader::FragmentOutputType::UnsignedInt;
+}
+
+/// Maxwell has 32 generics but a host may give a geometry shader fewer input locations
+/// (Turnip: maxGeometryInputComponents 64, so 16). Generics the geometry shader reads from the
+/// stage before it take the lowest host locations, in order; the rest follow. The table is
+/// used by both sides of that interface and by nothing else. It is built before either stage
+/// has had its legacy varyings converted to generics, so those land in the remainder; the two
+/// stages still agree, which is what matters.
+std::optional<std::array<u8, 32>> MakeGeometryInputLocations(
+    const Shader::IR::Program& geometry, const Shader::IR::Program& previous,
+    u32 max_geometry_input_locations) {
+    if (max_geometry_input_locations >= Shader::IR::NUM_GENERICS) {
+        return std::nullopt;
+    }
+    Shader::VaryingState loads{geometry.info.loads};
+    if (geometry.is_geometry_passthrough) {
+        loads.mask |= geometry.info.passthrough.mask;
+    }
+    std::array<u8, 32> locations{};
+    u8 next_location{0};
+    for (size_t index = 0; index < Shader::IR::NUM_GENERICS; ++index) {
+        if (previous.info.stores.Generic(index) && loads.Generic(index)) {
+            locations[index] = next_location++;
+        }
+    }
+    const u32 used_locations{next_location};
+    for (size_t index = 0; index < Shader::IR::NUM_GENERICS; ++index) {
+        if (!(previous.info.stores.Generic(index) && loads.Generic(index))) {
+            locations[index] = next_location++;
+        }
+    }
+    if (used_locations > max_geometry_input_locations) {
+        LOG_WARNING(Render_Vulkan,
+                    "Geometry shader reads {} generic inputs, host allows {} locations",
+                    used_locations, max_geometry_input_locations);
+    }
+    return locations;
 }
 
 Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> programs,
@@ -913,11 +952,29 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
 
     const Shader::IR::Program* previous_stage{};
     Shader::Backend::Bindings binding;
-    for (size_t index = uses_vertex_a && uses_vertex_b ? 1 : 0;
-         index < Tegra::Engines::Maxwell3D::Regs::MaxShaderProgram; ++index) {
+    const size_t first_index{uses_vertex_a && uses_vertex_b ? size_t{1} : size_t{0}};
+    constexpr size_t geometry_index{
+        static_cast<size_t>(Tegra::Engines::Maxwell3D::Regs::ShaderType::Geometry)};
+    // The stage whose outputs feed the geometry shader, if there is one
+    size_t geometry_source_index{geometry_index};
+    std::optional<std::array<u8, 32>> geometry_locations;
+    if (key.unique_hashes[geometry_index] != 0 || layer_source_program != nullptr) {
+        for (size_t index = first_index; index < geometry_index; ++index) {
+            if (key.unique_hashes[index] != 0) {
+                geometry_source_index = index;
+            }
+        }
+        if (geometry_source_index != geometry_index) {
+            geometry_locations =
+                MakeGeometryInputLocations(programs[geometry_index],
+                                           programs[geometry_source_index],
+                                           device.GetMaxGeometryInputLocations());
+        }
+    }
+    for (size_t index = first_index; index < Tegra::Engines::Maxwell3D::Regs::MaxShaderProgram;
+         ++index) {
         const bool is_emulated_stage =
-            layer_source_program != nullptr &&
-            index == static_cast<u32>(Tegra::Engines::Maxwell3D::Regs::ShaderType::Geometry);
+            layer_source_program != nullptr && index == geometry_index;
         if (key.unique_hashes[index] == 0 && !is_emulated_stage) {
             continue;
         }
@@ -929,6 +986,13 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
 
         auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage,
                                           profile.support_geometry_shader_passthrough)};
+        if (geometry_locations) {
+            if (index == geometry_index) {
+                runtime_info.input_generic_locations = *geometry_locations;
+            } else if (index == geometry_source_index) {
+                runtime_info.output_generic_locations = *geometry_locations;
+            }
+        }
         ConvertLegacyToGeneric(program, runtime_info);
         std::vector<u32> code = EmitSPIRV(profile, runtime_info, program, binding);
         // Reserve space to reduce allocations during shader compilation

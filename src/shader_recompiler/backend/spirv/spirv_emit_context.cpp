@@ -220,7 +220,8 @@ void DefineGenericOutput(EmitContext& ctx, size_t index, std::optional<u32> invo
         const u32 num_components{xfb_varying ? xfb_varying->components : remainder};
 
         const Id id{DefineOutput(ctx, ctx.F32[num_components], invocations)};
-        ctx.Decorate(id, spv::Decoration::Location, static_cast<u32>(index));
+        ctx.Decorate(id, spv::Decoration::Location,
+                     static_cast<u32>(ctx.runtime_info.output_generic_locations[index]));
         if (element > 0) {
             ctx.Decorate(id, spv::Decoration::Component, element);
         }
@@ -1686,7 +1687,8 @@ void EmitContext::DefineInputs(const IR::Program& program) {
         }
         const Id type{GetAttributeType(*this, input_type)};
         const Id id{DefineInput(*this, type, true)};
-        Decorate(id, spv::Decoration::Location, static_cast<u32>(index));
+        Decorate(id, spv::Decoration::Location,
+                 static_cast<u32>(runtime_info.input_generic_locations[index]));
         Name(id, fmt::format("in_attr{}", index));
         input_generics[index] = GetAttributeInfo(*this, input_type, id);
 
