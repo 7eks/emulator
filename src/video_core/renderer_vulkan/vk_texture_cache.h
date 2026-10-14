@@ -253,6 +253,12 @@ public:
         return supports_depth_comparison;
     }
 
+    /// False when the view's format cannot be sampled with a linear filter (Turnip: the 32-bit
+    /// float formats), in which case a linear sampler must not be paired with it
+    [[nodiscard]] bool SupportsLinearFilter() const noexcept {
+        return supports_linear_filter;
+    }
+
     [[nodiscard]] GPUVAddr GpuAddr() const noexcept {
         return gpu_addr;
     }
@@ -293,6 +299,7 @@ private:
     u32 buffer_size = 0;
     VideoCommon::ImageType physical_image_type = VideoCommon::ImageType::e2D;
     bool supports_depth_comparison = false;
+    bool supports_linear_filter = true;
 };
 
 class ImageAlloc : public VideoCommon::ImageAllocBase {};
