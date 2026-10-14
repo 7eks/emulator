@@ -87,8 +87,36 @@ spv::ImageFormat GetImageFormat(ImageFormat format) {
     throw InvalidArgument("Invalid image format {}", format);
 }
 
+/// The image format for a storage image or image buffer declaration, with the capability it
+/// needs. Of the formats GetImageFormat returns, the 8-bit, 16-bit and two-component ones need
+/// StorageImageExtendedFormats (SPIR-V core grammar, ImageFormat); without that feature the image
+/// is declared without a format, as a typeless one is.
+spv::ImageFormat StorageImageFormat(EmitContext& ctx, ImageFormat format) {
+    const spv::ImageFormat spv_format{GetImageFormat(format)};
+    switch (spv_format) {
+    case spv::ImageFormat::R8ui:
+    case spv::ImageFormat::R8i:
+    case spv::ImageFormat::R16ui:
+    case spv::ImageFormat::R16i:
+    case spv::ImageFormat::Rg32ui:
+    case spv::ImageFormat::Rg32i:
+    case spv::ImageFormat::Rg32f:
+        if (ctx.profile.support_storage_image_extended_formats) {
+            ctx.AddCapability(spv::Capability::StorageImageExtendedFormats);
+            return spv_format;
+        }
+        ctx.AddCapability(spv::Capability::StorageImageWriteWithoutFormat);
+        if (ctx.profile.support_typeless_image_loads) {
+            ctx.AddCapability(spv::Capability::StorageImageReadWithoutFormat);
+        }
+        return spv::ImageFormat::Unknown;
+    default:
+        return spv_format;
+    }
+}
+
 Id ImageType(EmitContext& ctx, const ImageDescriptor& desc, Id sampled_type) {
-    const spv::ImageFormat format{GetImageFormat(desc.format)};
+    const spv::ImageFormat format{StorageImageFormat(ctx, desc.format)};
     switch (desc.type) {
     case TextureType::Color1D:
         return ctx.TypeImage(sampled_type, spv::Dim::Dim1D, false, false, false, 2, format);
@@ -1417,7 +1445,7 @@ void EmitContext::DefineTextureBuffers(const Info& info, u32& binding) {
 void EmitContext::DefineImageBuffers(const Info& info, u32& binding) {
     image_buffers.reserve(info.image_buffer_descriptors.size());
     for (const ImageBufferDescriptor& desc : info.image_buffer_descriptors) {
-        const spv::ImageFormat format{GetImageFormat(desc.format)};
+        const spv::ImageFormat format{StorageImageFormat(*this, desc.format)};
         const Id sampled_type{desc.is_integer ? U32[1] : F32[1]};
         const Id image_type{
             TypeImage(sampled_type, spv::Dim::Buffer, false, false, false, 2, format)};

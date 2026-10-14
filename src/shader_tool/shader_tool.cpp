@@ -242,6 +242,7 @@ Profile DefaultToolProfile() {
     p.support_int8_uniform = true;
     p.support_int16_uniform = true;
     p.support_int64 = true;
+    p.support_storage_image_extended_formats = true;
     p.support_vertex_instance_id = false;
     p.support_float_controls = true;
     p.support_separate_denorm_behavior = true;
