@@ -552,12 +552,14 @@ void FixBarrierRangeFor3DCompatibleImage(VkImageSubresourceRange& range,
 void CopyBufferToImage(vk::CommandBuffer cmdbuf, VkBuffer src_buffer, VkImage image,
                        VkImageAspectFlags aspect_mask, bool is_initialized,
                        std::span<const VkBufferImageCopy> copies) {
+    // Transfer access is included both ways: an upload can follow another upload or a copy into
+    // the same image, and a copy or blit can read the image right after it.
     static constexpr VkAccessFlags WRITE_ACCESS_FLAGS =
         VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    static constexpr VkAccessFlags READ_ACCESS_FLAGS = VK_ACCESS_SHADER_READ_BIT |
-                                                       VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-                                                       VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+    static constexpr VkAccessFlags READ_ACCESS_FLAGS =
+        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT;
     const VkImageMemoryBarrier read_barrier{
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         .pNext = nullptr,
