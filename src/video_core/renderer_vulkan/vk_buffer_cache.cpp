@@ -453,6 +453,18 @@ void BufferCacheRuntime::CopyBuffer(VkBuffer dst_buffer, VkBuffer src_buffer,
     if (src_buffer == staging_pool.StreamBuf() && can_reorder_upload) {
         scheduler.RecordWithUploadBuffer([src_buffer, dst_buffer, vk_copies](
                                              vk::CommandBuffer, vk::CommandBuffer upload_cmdbuf) {
+            // CanReorderUpload only rules out use by work recorded for this submission, which runs
+            // after this command buffer. Work of earlier submissions may still read or write the
+            // buffer on the GPU, so the copy waits for it: the barrier's first scope is everything
+            // earlier in submission order on this queue.
+            static constexpr VkMemoryBarrier PRIOR_WORK_BARRIER{
+                .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                .pNext = nullptr,
+                .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            };
+            upload_cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                                          VK_PIPELINE_STAGE_TRANSFER_BIT, 0, PRIOR_WORK_BARRIER);
             upload_cmdbuf.CopyBuffer(src_buffer, dst_buffer, vk_copies);
         });
         return;
