@@ -119,7 +119,7 @@ bool BufferCache<P>::RunGarbageCollector(bool aggressive_gc) {
                 std::span{copies}.subspan(download.first_copy, download.num_copies);
             for (auto& copy : buffer_copies) {
                 copy.dst_offset += staging->offset;
-                buffer.MarkUsage(copy.src_offset, copy.size);
+                buffer.MarkUsage(copy.src_offset, copy.size, runtime.CurrentTick());
             }
             if (!buffer_copies.empty()) {
                 runtime.CopyBuffer(staging->buffer, buffer, buffer_copies, true);
@@ -1684,8 +1684,9 @@ void BufferCache<P>::TouchBuffer(Buffer& buffer, BufferId buffer_id) noexcept {
 
 template <class P>
 void BufferCache<P>::MarkGpuUse(Buffer& buffer, u64 offset, u64 size) {
-    buffer.MarkUsage(offset, size);
-    Uma::StampPages(buffer.page_gpu_tick, offset, size, runtime.CurrentTick());
+    const u64 tick = runtime.CurrentTick();
+    buffer.MarkUsage(offset, size, tick);
+    Uma::StampPages(buffer.page_gpu_tick, offset, size, tick);
 }
 
 template <class P>

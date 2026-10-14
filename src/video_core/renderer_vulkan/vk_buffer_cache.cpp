@@ -405,10 +405,10 @@ u64 BufferCacheRuntime::KnownGpuTick() const noexcept {
     return scheduler.GetMasterSemaphore().KnownGpuTick();
 }
 
-void BufferCacheRuntime::TickFrame(Common::SlotVector<Buffer>& slot_buffers) noexcept {
-    for (auto it = slot_buffers.begin(); it != slot_buffers.end(); it++) {
-        it->ResetUsageTracking();
-    }
+void BufferCacheRuntime::TickFrame([[maybe_unused]] Common::SlotVector<Buffer>& slot_buffers) noexcept {
+    // Usage tracking belongs to a submission (Buffer::MarkUsage) and starts over on its own.
+    // Clearing it here, between submissions, forgot draws already recorded in the open command
+    // buffer, and an upload could then be moved ahead of them.
 }
 
 void BufferCacheRuntime::Finish() {
@@ -422,7 +422,7 @@ bool BufferCacheRuntime::CanReorderUpload(const Buffer& buffer,
     }
     const bool can_use_upload_cmdbuf =
         std::ranges::all_of(copies, [&](const VideoCommon::BufferCopy& copy) {
-            return !buffer.IsRegionUsed(copy.dst_offset, copy.size);
+            return !buffer.IsRegionUsed(copy.dst_offset, copy.size, scheduler.CurrentTick());
         });
     return can_use_upload_cmdbuf;
 }
