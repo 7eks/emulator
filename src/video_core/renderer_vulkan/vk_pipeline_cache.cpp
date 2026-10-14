@@ -812,6 +812,35 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     // Layer passthrough generation for devices without VK_EXT_shader_viewport_index_layer
     Shader::IR::Program* layer_source_program{};
 
+    // A guest passthrough geometry shader that passes the layer on, on a host without
+    // VK_NV_geometry_shader_passthrough, is lowered to a geometry shader that must write the
+    // layer itself, and Vulkan gives a geometry shader no Layer input. The stages before it then
+    // write the layer to a spare generic, as on hosts without layer output from vertex shaders,
+    // and the lowered geometry shader copies it (LowerGeometryPassthrough).
+    constexpr size_t geometry_program{
+        static_cast<size_t>(Tegra::Engines::Maxwell3D::Regs::ShaderType::Geometry)};
+    const bool lowers_layer_passthrough{[&] {
+        if (key.unique_hashes[geometry_program] == 0 ||
+            graphics_host_info.support_geometry_shader_passthrough) {
+            return false;
+        }
+        size_t geometry_env{0};
+        for (size_t index = 0; index < geometry_program; ++index) {
+            geometry_env += key.unique_hashes[index] != 0 ? 1 : 0;
+        }
+        const Shader::Environment& geometry{*envs[geometry_env]};
+        if (geometry.SPH().common0.geometry_passthrough == 0) {
+            return false;
+        }
+        // A clear bit in post_vtg_shader_attrib_skip_mask passes that attribute through
+        constexpr size_t layer{static_cast<size_t>(Shader::IR::Attribute::Layer)};
+        return ((geometry.GpPassthroughMask()[layer / 32] >> (layer % 32)) & 1) == 0;
+    }()};
+    Shader::HostTranslateInfo before_geometry_host_info{graphics_host_info};
+    if (lowers_layer_passthrough) {
+        before_geometry_host_info.support_viewport_index_layer = false;
+    }
+
     for (size_t index = 0; index < Tegra::Engines::Maxwell3D::Regs::MaxShaderProgram; ++index) {
         const bool is_emulated_stage =
             layer_source_program != nullptr &&
@@ -831,15 +860,21 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
 
         const u32 cfg_offset{static_cast<u32>(env.StartAddress() + sizeof(Shader::ProgramHeader))};
         Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
+        Shader::HostTranslateInfo stage_host_info{
+            index < geometry_program ? before_geometry_host_info : graphics_host_info};
+        if (index == geometry_program && lowers_layer_passthrough &&
+            layer_source_program != nullptr) {
+            stage_host_info.passthrough_layer_source = layer_source_program->info.emulated_layer;
+        }
         if (!uses_vertex_a || index != 1) {
             // Normal path
             programs[index] =
-                TranslateProgram(pools.inst, pools.block, env, cfg, graphics_host_info);
+                TranslateProgram(pools.inst, pools.block, env, cfg, stage_host_info);
         } else {
             // VertexB path when VertexA is present.
             auto& program_va{programs[0]};
             auto program_vb{
-                TranslateProgram(pools.inst, pools.block, env, cfg, graphics_host_info)};
+                TranslateProgram(pools.inst, pools.block, env, cfg, stage_host_info)};
             programs[index] = MergeDualVertexPrograms(program_va, program_vb, env);
         }
 
