@@ -131,9 +131,9 @@ bool BufferCache<P>::RunGarbageCollector(bool aggressive_gc) {
             const auto& buffer = slot_buffers[download.id];
             for (const auto& copy : std::span{copies}.subspan(download.first_copy,
                                                             download.num_copies)) {
-                device_memory.WriteBlockUnsafe(
-                    buffer.CpuAddr() + copy.src_offset,
-                    staging->mapped_span.data() + copy.dst_offset - staging->offset, copy.size);
+                WriteBackDownload(buffer.CpuAddr() + copy.src_offset,
+                                  staging->mapped_span.data() + copy.dst_offset - staging->offset,
+                                  copy.size);
             }
         }
     }
@@ -771,8 +771,7 @@ void BufferCache<P>::PopAsyncBuffers() {
         const u64 dst_offset = copy.dst_offset - base_offset;
         const u8* read_mapped_memory = base + dst_offset;
         async_downloads.ForEachInRange(device_addr, copy.size, [&](DAddr start, DAddr end, s32) {
-            device_memory.WriteBlockUnsafe(start, &read_mapped_memory[start - device_addr],
-                                           end - start);
+            WriteBackDownload(start, &read_mapped_memory[start - device_addr], end - start);
         });
         async_downloads.Subtract(device_addr, copy.size, [&](DAddr start, DAddr end) {
             gpu_modified_ranges.Subtract(start, end - start);
@@ -1939,15 +1938,35 @@ void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64
             // Undo the modified offset
             const u64 dst_offset = copy.dst_offset - download_staging.offset;
             const u8* copy_mapped_memory = mapped_memory + dst_offset;
-            device_memory.WriteBlockUnsafe(copy_device_addr, copy_mapped_memory, copy.size);
+            WriteBackDownload(copy_device_addr, copy_mapped_memory, copy.size);
         }
     } else {
         const std::span<u8> immediate_buffer = ImmediateBuffer(largest_copy);
         for (const BufferCopy& copy : copies) {
             buffer.ImmediateDownload(copy.src_offset, immediate_buffer.subspan(0, copy.size));
             const DAddr copy_device_addr = buffer.CpuAddr() + copy.src_offset;
-            device_memory.WriteBlockUnsafe(copy_device_addr, immediate_buffer.data(), copy.size);
+            WriteBackDownload(copy_device_addr, immediate_buffer.data(), copy.size);
         }
+    }
+}
+
+template <class P>
+void BufferCache<P>::WriteBackDownload(DAddr device_addr, const u8* data, u64 size) {
+    // A buffer can cover device pages no guest memory backs (a storage buffer bound without a
+    // size spans its whole GPU mapping, see StorageBufferBinding). The GPU's writes there have
+    // nowhere to go; skip them, as the upload zero-fills them, and say so now and then instead
+    // of once per page per flush.
+    const auto result = device_memory.WriteBlockUnsafe(device_addr, data, size, false);
+    if (result.fully_mapped) {
+        return;
+    }
+    const u64 count = ++unbacked_write_back_count;
+    if (count <= 8 || (count % 256) == 0) {
+        LOG_WARNING(HW_Memory,
+                    "BufferCache download skips unmapped pages: d_address=0x{:016X} size={} "
+                    "first_unmapped=0x{:016X} unmapped_bytes={} sample_count={}",
+                    device_addr, size, result.first_unmapped_address, result.unmapped_bytes,
+                    count);
     }
 }
 
