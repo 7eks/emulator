@@ -350,7 +350,10 @@ VkPrimitiveTopology PrimitiveTopology([[maybe_unused]] const Device& device,
     case Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology::Lines:
         return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
     case Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology::LineLoop:
-        return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        // Vulkan has no line loop. A line strip draws every edge but the closing one; a triangle
+        // list drew filled triangles from line vertices. The closing edge needs an index
+        // conversion like the one for quads.
+        return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
     case Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology::LineStrip:
         return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
     case Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology::Triangles:
