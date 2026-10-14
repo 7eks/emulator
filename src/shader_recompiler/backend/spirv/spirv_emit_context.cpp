@@ -983,18 +983,27 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
     const auto define_body{[&](DefPtr ssbo_member, Id addr, Id element_pointer, u32 shift,
                                auto&& callback) {
         AddLabel();
+        // Every storage buffer of the shader is searched, not only the NVN slots it reads: a
+        // pointer the shader loads from memory can point into a buffer that was tracked from
+        // another constant buffer (DOOM Eternal keeps its table in cbuf 5). nvn_buffer_used is
+        // indexed by NVN slot, not by descriptor, so it could not select descriptors anyway.
         const size_t num_buffers{info.storage_buffers_descriptors.size()};
         for (size_t index = 0; index < num_buffers; ++index) {
-            if (!info.nvn_buffer_used[index]) {
+            const auto& ssbo{info.storage_buffers_descriptors[index]};
+            // The address (a u32x2 at the descriptor) and size (the word after it) are read from
+            // the constant buffer that holds the descriptor, which the shader only declares when
+            // it reads it.
+            const UniformDefinitions& cbuf{cbufs[ssbo.cbuf_index]};
+            if (ssbo.count != 1 || ssbo.cbuf_offset % 8 != 0 || cbuf.U32x2.value == 0 ||
+                cbuf.U32.value == 0) {
                 continue;
             }
-            const auto& ssbo{info.storage_buffers_descriptors[index]};
             const Id ssbo_addr_cbuf_offset{Const(ssbo.cbuf_offset / 8)};
             const Id ssbo_size_cbuf_offset{Const(ssbo.cbuf_offset / 4 + 2)};
-            const Id ssbo_addr_pointer{OpAccessChain(
-                uniform_types.U32x2, cbufs[ssbo.cbuf_index].U32x2, zero, ssbo_addr_cbuf_offset)};
-            const Id ssbo_size_pointer{OpAccessChain(uniform_types.U32, cbufs[ssbo.cbuf_index].U32,
-                                                     zero, ssbo_size_cbuf_offset)};
+            const Id ssbo_addr_pointer{
+                OpAccessChain(uniform_types.U32x2, cbuf.U32x2, zero, ssbo_addr_cbuf_offset)};
+            const Id ssbo_size_pointer{
+                OpAccessChain(uniform_types.U32, cbuf.U32, zero, ssbo_size_cbuf_offset)};
 
             const u64 ssbo_align_mask{~(profile.min_ssbo_alignment - 1U)};
             const Id unaligned_addr{OpBitcast(U64, OpLoad(U32[2], ssbo_addr_pointer))};
