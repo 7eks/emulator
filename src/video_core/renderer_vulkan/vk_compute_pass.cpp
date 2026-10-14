@@ -704,6 +704,16 @@ void MSAACopyPass::CopyImage(Image& dst_image, Image& src_image,
 
         scheduler.Record([this, dst = dst_image.Handle(), msaa_pipeline, num_dispatches,
                           descriptor_data](vk::CommandBuffer cmdbuf) {
+            // The source was usually just rendered to and the destination may still be read:
+            // order both before the shader reads and writes them.
+            static constexpr VkMemoryBarrier READY_BARRIER{
+                .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                .pNext = nullptr,
+                .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            };
+            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, READY_BARRIER);
             const VkDescriptorSet set = descriptor_allocator.Commit();
             device.GetLogical().UpdateDescriptorSet(set, *descriptor_template, descriptor_data);
             cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, msaa_pipeline);
@@ -713,7 +723,7 @@ void MSAACopyPass::CopyImage(Image& dst_image, Image& src_image,
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
                 .pNext = nullptr,
                 .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
                 .newLayout = VK_IMAGE_LAYOUT_GENERAL,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -728,7 +738,7 @@ void MSAACopyPass::CopyImage(Image& dst_image, Image& src_image,
                 },
             };
             cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                   VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, write_barrier);
+                                   VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, write_barrier);
         });
     }
 }
