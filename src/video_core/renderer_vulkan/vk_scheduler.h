@@ -60,6 +60,11 @@ public:
     /// of a renderpass.
     void RequestOutsideRenderPassOperationContext();
 
+    /// True while recorded commands are inside a render pass.
+    [[nodiscard]] bool IsRenderPassActive() const noexcept {
+        return state.renderpass != nullptr;
+    }
+
     /// Update the pipeline to the current execution context.
     bool UpdateGraphicsPipeline(GraphicsPipeline* pipeline);
 

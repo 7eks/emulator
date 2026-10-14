@@ -115,6 +115,9 @@ public:
 
     bool CanReorderUpload(const Buffer& buffer, std::span<const VideoCommon::BufferCopy> copies);
 
+    /// An upload copy that cannot be reordered would end the render pass that is open now.
+    [[nodiscard]] bool IsRenderPassActive() const noexcept;
+
     void FreeDeferredStagingBuffer(StagingBufferRef& ref);
 
     void PreCopyBarrier();

@@ -427,6 +427,10 @@ bool BufferCacheRuntime::CanReorderUpload(const Buffer& buffer,
     return can_use_upload_cmdbuf;
 }
 
+bool BufferCacheRuntime::IsRenderPassActive() const noexcept {
+    return scheduler.IsRenderPassActive();
+}
+
 void BufferCacheRuntime::CopyBuffer(VkBuffer dst_buffer, VkBuffer src_buffer,
                                     std::span<const VideoCommon::BufferCopy> copies, bool barrier,
                                     bool can_reorder_upload) {
