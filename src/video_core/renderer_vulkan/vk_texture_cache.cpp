@@ -479,16 +479,17 @@ void FixBarrierRangeFor3DCompatibleImage(VkImageSubresourceRange& range,
     if (image_type != VideoCommon::ImageType::e3D) {
         return;
     }
-    if (range.baseArrayLayer == 0 && range.layerCount == 1) {
-        range.layerCount = VK_REMAINING_ARRAY_LAYERS;
-    }
+    range.baseArrayLayer = 0;
+    range.layerCount = VK_REMAINING_ARRAY_LAYERS;
 }
 
 [[nodiscard]] VkImageSubresourceRange MakeFramebufferBarrierRange(const ImageView* image_view) {
     VkImageSubresourceRange range = MakeSubresourceRange(image_view);
-    if (image_view->PhysicalImageType() == VideoCommon::ImageType::e3D &&
-        image_view->type == VideoCommon::ImageViewType::e3D && range.baseArrayLayer == 0 &&
-        range.layerCount == 1) {
+    if (image_view->PhysicalImageType() == VideoCommon::ImageType::e3D) {
+        // Without maintenance9 a barrier on a 3D image covers every depth slice whatever the
+        // range says, and must use base layer 0. A 2D or 2D array view of a 3D image (rendering
+        // to slices) gets the same whole-image range as a 3D view.
+        range.baseArrayLayer = 0;
         range.layerCount = VK_REMAINING_ARRAY_LAYERS;
     }
     return range;
