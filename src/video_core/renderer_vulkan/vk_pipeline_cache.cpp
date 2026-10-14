@@ -181,7 +181,8 @@ Shader::FragmentOutputType GetFragmentOutputType(u8 encoded_format) {
 Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> programs,
                                     const GraphicsPipelineCacheKey& key,
                                     const Shader::IR::Program& program,
-                                    const Shader::IR::Program* previous_program) {
+                                    const Shader::IR::Program* previous_program,
+                                    bool host_geometry_passthrough) {
     Shader::RuntimeInfo info;
     if (previous_program) {
         info.previous_stage_stores = previous_program->info.stores;
@@ -193,7 +194,12 @@ Shader::RuntimeInfo MakeRuntimeInfo(std::span<const Shader::IR::Program> program
         info.previous_stage_stores.mask.set();
     }
     const Shader::Stage stage{program.stage};
-    const bool has_geometry{key.unique_hashes[4] != 0 && !programs[4].is_geometry_passthrough};
+    // A guest passthrough geometry shader stays a passthrough one only with
+    // VK_NV_geometry_shader_passthrough; without it TranslateProgram lowers it to a geometry
+    // shader that emits the vertices itself (LowerGeometryPassthrough), which then does the
+    // last-stage work (depth mode, point size, transform feedback) and the vertex stage must not.
+    const bool has_geometry{key.unique_hashes[4] != 0 &&
+                            (!programs[4].is_geometry_passthrough || !host_geometry_passthrough)};
     const bool gl_ndc{key.state.ndc_minus_one_to_one != 0};
     const float point_size{std::bit_cast<float>(key.state.point_size)};
     switch (stage) {
@@ -921,7 +927,8 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         const size_t stage_index{index - 1};
         infos[stage_index] = &program.info;
 
-        const auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage)};
+        auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage,
+                                          profile.support_geometry_shader_passthrough)};
         ConvertLegacyToGeneric(program, runtime_info);
         std::vector<u32> code = EmitSPIRV(profile, runtime_info, program, binding);
         // Reserve space to reduce allocations during shader compilation
