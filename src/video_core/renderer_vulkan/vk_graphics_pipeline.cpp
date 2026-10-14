@@ -146,6 +146,18 @@ RenderPassKey MakeRenderPassKey(const FixedPipelineState& state) {
     return key;
 }
 
+/// Whether the stage writes memory other than its render targets. Global memory counts even when
+/// only read, as its accesses are not tracked per descriptor.
+bool ShaderWritesMemory(const Shader::Info& info) {
+    const auto any_written = [](const auto& descriptors) {
+        return std::ranges::any_of(descriptors, [](const auto& desc) { return desc.is_written; });
+    };
+    return info.stores_global_memory || info.uses_global_memory ||
+           !info.pointer_store_descriptors.empty() ||
+           any_written(info.storage_buffers_descriptors) ||
+           any_written(info.image_buffer_descriptors) || any_written(info.image_descriptors);
+}
+
 size_t NumAttachments(const FixedPipelineState& state) {
     size_t num{};
     for (size_t index = 0; index < Tegra::Engines::Maxwell3D::Regs::NumRenderTargets; ++index) {
@@ -269,6 +281,7 @@ GraphicsPipeline::GraphicsPipeline(
             continue;
         }
         stage_infos[stage] = *info;
+        writes_memory |= ShaderWritesMemory(*info);
         enabled_uniform_buffer_masks[stage] = info->constant_buffer_mask;
         std::ranges::copy(info->constant_buffer_used_sizes, uniform_buffer_sizes[stage].begin());
         num_textures += Shader::NumDescriptors(info->texture_descriptors);
