@@ -8,6 +8,8 @@
 #include <bit>
 #include <cmath>
 #include <span>
+#include <string>
+#include <string_view>
 #include <vector>
 #include <boost/container/small_vector.hpp>
 
@@ -52,6 +54,22 @@ using VideoCore::Surface::IsPixelFormatInteger;
 using VideoCore::Surface::SurfaceType;
 
 namespace {
+/// The format's name without its number type: A8B8G8R8 for A8B8G8R8_UNORM and A8B8G8R8_SRGB,
+/// R32 for R32_FLOAT and R32_UINT. Views between such formats keep each texel's bits per
+/// component, which is what drivers need to keep compressing an image viewed both ways.
+[[nodiscard]] std::string ComponentLayout(PixelFormat format) {
+    constexpr std::array<std::string_view, 6> number_types{"_UNORM", "_SNORM", "_UINT",
+                                                           "_SINT",  "_FLOAT", "_SRGB"};
+    std::string name = fmt::format("{}", format);
+    for (const std::string_view number_type : number_types) {
+        if (name.ends_with(number_type)) {
+            name.resize(name.size() - number_type.size());
+            break;
+        }
+    }
+    return name;
+}
+
 constexpr VkBorderColor ConvertBorderColor(const std::array<float, 4>& color) {
     if (color == std::array<float, 4>{0, 0, 0, 0}) {
         return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
@@ -893,6 +911,83 @@ void BlitScale(Scheduler& scheduler, VkImage src_image, VkImage dst_image, const
                                0, nullptr, nullptr, write_barriers);
     });
 }
+
+/// Copies every level and layer of src_image, in the general layout, into dst_image, a new image
+/// of the same format and size, and leaves both in the general layout.
+void CopyWholeImage(Scheduler& scheduler, VkImage src_image, VkImage dst_image,
+                    const ImageInfo& info, VkImageAspectFlags aspect_mask) {
+    const auto [samples_x, samples_y] = VideoCommon::SamplesLog2(info.num_samples);
+    const u32 width = info.size.width >> samples_x;
+    const u32 height = info.size.height >> samples_y;
+    const u32 depth = info.size.depth;
+    const u32 layers = static_cast<u32>(info.resources.layers);
+    const u32 mip_levels = PhysicalMipLevels(info);
+    boost::container::small_vector<VkImageCopy, 16> regions;
+    for (u32 level = 0; level < mip_levels; ++level) {
+        const VkImageSubresourceLayers subresource{
+            .aspectMask = aspect_mask,
+            .mipLevel = level,
+            .baseArrayLayer = 0,
+            .layerCount = layers,
+        };
+        regions.push_back(VkImageCopy{
+            .srcSubresource = subresource,
+            .srcOffset = {0, 0, 0},
+            .dstSubresource = subresource,
+            .dstOffset = {0, 0, 0},
+            .extent{
+                .width = std::max(1U, width >> level),
+                .height = std::max(1U, height >> level),
+                .depth = std::max(1U, depth >> level),
+            },
+        });
+    }
+    scheduler.RequestOutsideRenderPassOperationContext();
+    scheduler.Record([src_image, dst_image, aspect_mask, regions](vk::CommandBuffer cmdbuf) {
+        const VkImageSubresourceRange range{
+            .aspectMask = aspect_mask,
+            .baseMipLevel = 0,
+            .levelCount = VK_REMAINING_MIP_LEVELS,
+            .baseArrayLayer = 0,
+            .layerCount = VK_REMAINING_ARRAY_LAYERS,
+        };
+        const auto barrier = [&range](VkImage image, VkAccessFlags src_access,
+                                      VkAccessFlags dst_access, VkImageLayout old_layout,
+                                      VkImageLayout new_layout) {
+            return VkImageMemoryBarrier{
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .pNext = nullptr,
+                .srcAccessMask = src_access,
+                .dstAccessMask = dst_access,
+                .oldLayout = old_layout,
+                .newLayout = new_layout,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = image,
+                .subresourceRange = range,
+            };
+        };
+        const std::array read_barriers{
+            barrier(src_image, VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+                    VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL),
+            barrier(dst_image, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT,
+                    VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL),
+        };
+        const std::array write_barriers{
+            barrier(src_image, VK_ACCESS_NONE, VK_ACCESS_NONE,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL),
+            barrier(dst_image, VK_ACCESS_TRANSFER_WRITE_BIT,
+                    VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL),
+        };
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                               0, nullptr, nullptr, read_barriers);
+        cmdbuf.CopyImage(src_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst_image,
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, regions);
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                               0, nullptr, nullptr, write_barriers);
+    });
+}
 } // Anonymous namespace
 
 TextureCacheRuntime::TextureCacheRuntime(const Device& device_, Scheduler& scheduler_,
@@ -921,26 +1016,82 @@ TextureCacheRuntime::TextureCacheRuntime(const Device& device_, Scheduler& sched
     if (!device.IsKhrImageFormatListSupported()) {
         return;
     }
+    // Images are made with the narrow list. A driver turns framebuffer compression off for an
+    // image whose list holds formats it cannot compress alike (Turnip: tu_image.cc, "Disabling
+    // UBWC ... due to mutable formats"), and a full list puts R32, R16G16 and A2B10G10R10 on every
+    // A8B8G8R8 image. Image::WidenViewFormats makes an image again with the wide list the first
+    // time a view needs a format outside the narrow one.
     for (size_t index_a = 0; index_a < VideoCore::Surface::MaxPixelFormat; index_a++) {
         const auto image_format = static_cast<PixelFormat>(index_a);
+        auto& wide = view_formats[index_a];
+        auto& narrow = narrow_view_formats[index_a];
         if (IsPixelFormatASTC(image_format) && !device.IsOptimalAstcSupported()) {
-            view_formats[index_a].push_back(VK_FORMAT_A8B8G8R8_UNORM_PACK32);
+            wide.push_back(VK_FORMAT_A8B8G8R8_UNORM_PACK32);
+            narrow.push_back(VK_FORMAT_A8B8G8R8_UNORM_PACK32);
         }
         if (IsPixelFormatETC2(image_format) && !device.IsOptimalEtc2Supported()) {
             const bool is_srgb = VideoCore::Surface::IsPixelFormatSRGB(image_format);
-            view_formats[index_a].push_back(is_srgb ? VK_FORMAT_A8B8G8R8_SRGB_PACK32
-                                                    : VK_FORMAT_A8B8G8R8_UNORM_PACK32);
+            const VkFormat decoded =
+                is_srgb ? VK_FORMAT_A8B8G8R8_SRGB_PACK32 : VK_FORMAT_A8B8G8R8_UNORM_PACK32;
+            wide.push_back(decoded);
+            narrow.push_back(decoded);
         }
+        const bool is_color = VideoCore::Surface::GetFormatType(image_format) ==
+                              SurfaceType::ColorTexture;
+        const std::string layout = ComponentLayout(image_format);
         for (size_t index_b = 0; index_b < VideoCore::Surface::MaxPixelFormat; index_b++) {
             const auto view_format = static_cast<PixelFormat>(index_b);
             if (VideoCore::Surface::IsViewCompatible(image_format, view_format, false,
                                                      native_bgr)) {
                 const auto view_info =
                     MaxwellToVK::SurfaceFormat(device, FormatType::Optimal, true, view_format);
-                view_formats[index_a].push_back(view_info.format);
+                wide.push_back(view_info.format);
+                if (!is_color || ComponentLayout(view_format) == layout) {
+                    narrow.push_back(view_info.format);
+                }
             }
         }
+        // A view in the image's own format has to be in its list too
+        // (VUID-VkImageViewCreateInfo-pNext-01585)
+        const VkFormat own_format =
+            MaxwellToVK::SurfaceFormat(device, FormatType::Optimal, false, image_format).format;
+        if (narrow.size() > 1 && std::ranges::find(narrow, own_format) == narrow.end()) {
+            narrow.push_back(own_format);
+        }
     }
+}
+
+struct TextureCacheRuntime::RetiredImage {
+    u64 tick;
+    u64 frame;
+    vk::Image original;
+    vk::Image scaled;
+    std::vector<vk::ImageView> storage_views;
+    std::unique_ptr<Framebuffer> scale_framebuffer;
+    std::unique_ptr<ImageView> scale_view;
+    std::unique_ptr<Framebuffer> normal_framebuffer;
+    std::unique_ptr<ImageView> normal_view;
+};
+
+TextureCacheRuntime::~TextureCacheRuntime() = default;
+
+void TextureCacheRuntime::RetireImage(vk::Image original, vk::Image scaled,
+                                      std::vector<vk::ImageView> storage_views,
+                                      std::unique_ptr<Framebuffer> scale_framebuffer,
+                                      std::unique_ptr<ImageView> scale_view,
+                                      std::unique_ptr<Framebuffer> normal_framebuffer,
+                                      std::unique_ptr<ImageView> normal_view) {
+    retired_images.push_back(std::make_unique<RetiredImage>(RetiredImage{
+        .tick = scheduler.CurrentTick(),
+        .frame = frame_count,
+        .original = std::move(original),
+        .scaled = std::move(scaled),
+        .storage_views = std::move(storage_views),
+        .scale_framebuffer = std::move(scale_framebuffer),
+        .scale_view = std::move(scale_view),
+        .normal_framebuffer = std::move(normal_framebuffer),
+        .normal_view = std::move(normal_view),
+    }));
 }
 
 void TextureCacheRuntime::Finish() {
@@ -1483,14 +1634,32 @@ bool TextureCacheRuntime::CanReportMemoryUsage() const {
     return device.CanReportMemoryUsage();
 }
 
-void TextureCacheRuntime::TickFrame() {}
+void TextureCacheRuntime::TickFrame() {
+    ++frame_count;
+    // Views of a retired image are destroyed with the texture cache's delayed destruction
+    // (TICKS_TO_DESTROY = 8 frames); the image outlives them and the GPU work that used it.
+    constexpr u64 RETIRED_IMAGE_FRAMES = 10;
+    while (!retired_images.empty()) {
+        const RetiredImage& retired = *retired_images.front();
+        if (frame_count < retired.frame + RETIRED_IMAGE_FRAMES || !scheduler.IsFree(retired.tick)) {
+            break;
+        }
+        retired_images.pop_front();
+    }
+}
 
 Image::Image(TextureCacheRuntime& runtime_, const ImageInfo& info_, GPUVAddr gpu_addr_,
              VAddr cpu_addr_)
     : VideoCommon::ImageBase(info_, gpu_addr_, cpu_addr_), scheduler{&runtime_.scheduler},
       runtime{&runtime_}, original_image(MakeImage(runtime_.device, runtime_.memory_allocator, info,
-                                                   runtime->ViewFormats(info.format))),
+                                                   runtime->ViewFormats(info.format, false))),
       aspect_mask(ImageAspectMask(info.format)) {
+    const auto narrow = runtime->ViewFormats(info.format, false);
+    wide_view_formats = std::ranges::all_of(runtime->ViewFormats(info.format, true),
+                                            [narrow](VkFormat format) {
+                                                return std::ranges::find(narrow, format) !=
+                                                       narrow.end();
+                                            });
     if (IsPixelFormatASTC(info.format) && !runtime->device.IsOptimalAstcSupported()) {
         switch (Settings::values.accelerate_astc.GetValue()) {
         case Settings::AstcDecodeMode::Gpu:
@@ -1521,7 +1690,14 @@ Image::Image(TextureCacheRuntime& runtime_, const ImageInfo& info_, GPUVAddr gpu
         original_image.SetObjectNameEXT(VideoCommon::Name(*this).c_str());
     }
     current_image = *original_image;
+    MakeStorageImageViews();
+}
+
+Image::Image(const VideoCommon::NullImageParams& params) : VideoCommon::ImageBase{params} {}
+
+void Image::MakeStorageImageViews() {
     const u32 mip_levels = PhysicalMipLevels(info);
+    storage_image_views.clear();
     storage_image_views.resize(mip_levels);
     if (IsPixelFormatASTC(info.format) && !runtime->device.IsOptimalAstcSupported() &&
         Settings::values.astc_recompression.GetValue() ==
@@ -1534,7 +1710,80 @@ Image::Image(TextureCacheRuntime& runtime_, const ImageInfo& info_, GPUVAddr gpu
     }
 }
 
-Image::Image(const VideoCommon::NullImageParams& params) : VideoCommon::ImageBase{params} {}
+bool Image::NeedsWideViews(PixelFormat view_format) const {
+    if (wide_view_formats) {
+        return false;
+    }
+    const auto format_info =
+        MaxwellToVK::SurfaceFormat(runtime->device, FormatType::Optimal, true, view_format);
+    return NeedsWideVkFormat(format_info.format);
+}
+
+bool Image::NeedsWideStorageViews(Shader::ImageFormat storage_format) const {
+    if (wide_view_formats || storage_format == Shader::ImageFormat::Typeless) {
+        return false;
+    }
+    return NeedsWideVkFormat(Format(storage_format));
+}
+
+bool Image::NeedsWideVkFormat(VkFormat view_format) const {
+    if (!original_image) {
+        return false;
+    }
+    const auto narrow = runtime->ViewFormats(info.format, false);
+    if (std::ranges::find(narrow, view_format) != narrow.end()) {
+        return false;
+    }
+    // A format outside the wide list is not made a view of this image either way
+    const auto wide = runtime->ViewFormats(info.format, true);
+    return std::ranges::find(wide, view_format) != wide.end();
+}
+
+ImageInfo Image::ScaledInfo() const {
+    const auto& resolution = runtime->resolution;
+    const bool is_2d = info.type == ImageType::e2D;
+    ImageInfo scaled_info = info;
+    scaled_info.size.width = resolution.ScaleUp(info.size.width);
+    scaled_info.size.height = is_2d ? resolution.ScaleUp(info.size.height) : info.size.height;
+    return scaled_info;
+}
+
+bool Image::WidenViewFormats() {
+    if (wide_view_formats || !original_image) {
+        return false;
+    }
+    wide_view_formats = true;
+    const auto formats = runtime->ViewFormats(info.format, true);
+    vk::Image new_original =
+        MakeImage(runtime->device, runtime->memory_allocator, info, formats);
+    vk::Image new_scaled{};
+    if (scaled_image) {
+        new_scaled = MakeImage(runtime->device, runtime->memory_allocator, ScaledInfo(), formats);
+    }
+    if (runtime->device.HasDebuggingToolAttached()) {
+        new_original.SetObjectNameEXT(VideoCommon::Name(*this).c_str());
+    }
+    if (aspect_mask == 0) {
+        aspect_mask = ImageAspectMask(info.format);
+    }
+    if (initialized) {
+        // Both images hold data once the image was scaled: the one in use and the one a scale
+        // in the other direction copies back from.
+        CopyWholeImage(*scheduler, *original_image, *new_original, info, aspect_mask);
+        if (scaled_image) {
+            CopyWholeImage(*scheduler, *scaled_image, *new_scaled, ScaledInfo(), aspect_mask);
+        }
+    }
+    runtime->RetireImage(std::move(original_image), std::move(scaled_image),
+                         std::move(storage_image_views), std::move(scale_framebuffer),
+                         std::move(scale_view), std::move(normal_framebuffer),
+                         std::move(normal_view));
+    original_image = std::move(new_original);
+    scaled_image = std::move(new_scaled);
+    current_image = True(flags & ImageFlagBits::Rescaled) ? *scaled_image : *original_image;
+    MakeStorageImageViews();
+    return true;
+}
 
 Image::~Image() = default;
 
@@ -1690,14 +1939,8 @@ bool Image::ScaleUp(bool ignore) {
     flags |= ImageFlagBits::Rescaled;
     has_scaled = true;
     if (!scaled_image) {
-        const bool is_2d = info.type == ImageType::e2D;
-        const u32 scaled_width = resolution.ScaleUp(info.size.width);
-        const u32 scaled_height = is_2d ? resolution.ScaleUp(info.size.height) : info.size.height;
-        auto scaled_info = info;
-        scaled_info.size.width = scaled_width;
-        scaled_info.size.height = scaled_height;
-        scaled_image = MakeImage(runtime->device, runtime->memory_allocator, scaled_info,
-                                 runtime->ViewFormats(info.format));
+        scaled_image = MakeImage(runtime->device, runtime->memory_allocator, ScaledInfo(),
+                                 runtime->ViewFormats(info.format, wide_view_formats));
         ignore = false;
     }
     current_image = *scaled_image;
