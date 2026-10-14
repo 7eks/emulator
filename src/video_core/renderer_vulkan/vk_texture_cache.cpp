@@ -2088,8 +2088,30 @@ vk::ImageView ImageView::MakeView(VkFormat view_format, VkImageAspectFlags aspec
 Sampler::Sampler(TextureCacheRuntime& runtime, const Tegra::Texture::TSCEntry& tsc)
     : srgb_conversion{tsc.srgb_conversion != 0} {
     const auto& device = runtime.device;
-    const bool arbitrary_borders = runtime.device.IsExtCustomBorderColorSupported();
     const auto color = tsc.BorderColor();
+    // Only a colour Vulkan has no enum for takes a custom border colour, which costs one of the
+    // device's maxCustomBorderColorSamplers slots per VkSampler until it is destroyed. Up to 4
+    // VkSamplers are made below; the count never goes down, so once it reaches the limit later
+    // samplers use the nearest standard colour.
+    constexpr u32 max_vk_samplers = 4;
+    const bool standard_color = color == std::array<float, 4>{0, 0, 0, 0} ||
+                                color == std::array<float, 4>{0, 0, 0, 1} ||
+                                color == std::array<float, 4>{1, 1, 1, 1};
+    const bool wants_custom_border = !standard_color && device.IsExtCustomBorderColorSupported();
+    const bool arbitrary_borders =
+        wants_custom_border && runtime.custom_border_samplers + max_vk_samplers <=
+                                   device.GetMaxCustomBorderColorSamplers();
+    if (arbitrary_borders) {
+        runtime.custom_border_samplers += max_vk_samplers;
+    } else if (wants_custom_border && !runtime.custom_border_budget_reported) {
+        // Said once: from here on every sampler with a colour of its own gets the nearest
+        // standard colour, which can change a picture.
+        runtime.custom_border_budget_reported = true;
+        LOG_WARNING(Render_Vulkan,
+                    "Custom border colour samplers exhausted ({} of {} slots), later samplers use "
+                    "the nearest standard colour",
+                    runtime.custom_border_samplers, device.GetMaxCustomBorderColorSamplers());
+    }
 
     const VkSamplerCustomBorderColorCreateInfoEXT border_ci{
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CUSTOM_BORDER_COLOR_CREATE_INFO_EXT,

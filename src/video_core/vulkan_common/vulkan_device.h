@@ -600,6 +600,11 @@ public:
         return extensions.custom_border_color;
     }
 
+    /// Returns how many samplers with a custom border colour can exist at once.
+    u32 GetMaxCustomBorderColorSamplers() const {
+        return properties.custom_border_color.maxCustomBorderColorSamplers;
+    }
+
     /// Returns true if the device supports VK_EXT_extended_dynamic_state.
     bool IsExtExtendedDynamicStateSupported() const {
         return extensions.extended_dynamic_state;
@@ -924,6 +929,7 @@ private:
         VkPhysicalDeviceSubgroupSizeControlProperties subgroup_size_control{};
         VkPhysicalDeviceTransformFeedbackPropertiesEXT transform_feedback{};
         VkPhysicalDeviceRobustness2PropertiesEXT robustness2{};
+        VkPhysicalDeviceCustomBorderColorPropertiesEXT custom_border_color{};
 
         VkPhysicalDeviceProperties properties{};
     };
