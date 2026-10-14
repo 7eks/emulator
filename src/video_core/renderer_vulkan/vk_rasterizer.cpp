@@ -625,27 +625,13 @@ void RasterizerVulkan::Clear(u32 layer_count) {
 
     const u32 color_attachment = regs.clear_surface.RT;
     if (use_color && framebuffer->HasAspectColorBit(color_attachment)) {
-        const auto format =
-            VideoCore::Surface::PixelFormatFromRenderTargetFormat(regs.rt[color_attachment].format);
-        bool is_integer = IsPixelFormatInteger(format);
-        bool is_signed = IsPixelFormatSignedInteger(format);
-        size_t int_size = PixelComponentSizeBitsInteger(format);
+        // SET_COLOR_CLEAR_VALUE (0x0D80) holds the clear colour as raw 32-bit words in the render
+        // target's type: floats for float and normalized targets, integers for integer targets
+        // (clb197.h; NVK and nouveau pass the words through). VkClearColorValue overlays the
+        // same three types, so the words are copied as they are.
         VkClearValue clear_value{};
-        if (!is_integer) {
-            std::memcpy(clear_value.color.float32, regs.clear_color.data(),
-                        regs.clear_color.size() * sizeof(f32));
-        } else if (!is_signed) {
-            for (size_t i = 0; i < 4; i++) {
-                clear_value.color.uint32[i] = static_cast<u32>(
-                    static_cast<f32>(static_cast<u64>(int_size) << 1U) * regs.clear_color[i]);
-            }
-        } else {
-            for (size_t i = 0; i < 4; i++) {
-                clear_value.color.int32[i] =
-                    static_cast<s32>(static_cast<f32>(static_cast<s64>(int_size - 1) << 1) *
-                                     (regs.clear_color[i] - 0.5f));
-            }
-        }
+        static_assert(sizeof(clear_value.color) == sizeof(regs.clear_color));
+        std::memcpy(&clear_value.color, regs.clear_color.data(), sizeof(clear_value.color));
 
         if (regs.clear_surface.R && regs.clear_surface.G && regs.clear_surface.B &&
             regs.clear_surface.A) {
