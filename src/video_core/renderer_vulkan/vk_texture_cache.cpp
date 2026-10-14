@@ -1985,17 +1985,23 @@ VkImageView ImageView::StorageView(Shader::TextureType texture_type,
     if (!image_handle) {
         return VK_NULL_HANDLE;
     }
+    if (!storage_views) {
+        storage_views = std::make_unique<StorageViews>();
+    }
     if (image_format == Shader::ImageFormat::Typeless) {
-        return Handle(texture_type);
+        // A storage descriptor needs the identity swizzle (VUID-VkWriteDescriptorSet-
+        // descriptorType-00336), so the sampled view with the TIC swizzle cannot be bound.
+        auto& view{storage_views->typeless[static_cast<size_t>(texture_type)]};
+        if (!view) {
+            view = MakeTypelessStorageView(texture_type);
+        }
+        return *view;
     }
     const bool is_signed{image_format == Shader::ImageFormat::R8_SINT ||
                          image_format == Shader::ImageFormat::R16_SINT ||
                          image_format == Shader::ImageFormat::R32_SINT ||
                          image_format == Shader::ImageFormat::R32G32_SINT ||
                          image_format == Shader::ImageFormat::R32G32B32A32_SINT};
-    if (!storage_views) {
-        storage_views = std::make_unique<StorageViews>();
-    }
     auto& views{is_signed ? storage_views->signeds : storage_views->unsigneds};
     auto& view{views[static_cast<size_t>(texture_type)]};
     if (view) {
@@ -2082,6 +2088,60 @@ vk::ImageView ImageView::MakeView(VkFormat view_format, VkImageAspectFlags aspec
             .a = VK_COMPONENT_SWIZZLE_IDENTITY,
         },
         .subresourceRange = MakeSubresourceRange(aspect, range),
+    });
+}
+
+vk::ImageView ImageView::MakeTypelessStorageView(Shader::TextureType texture_type) {
+    using Shader::TextureType;
+    // The same shape as the sampled view Handle(texture_type) returns (see the constructor), in
+    // the same format, but with the identity swizzle a storage descriptor requires. What the TIC
+    // swizzle does to a Maxwell surface load is not known from a test; it is dropped here, and a
+    // dropped swizzle that is not the identity is logged so the case can be found.
+    const auto is_identity = [](VkComponentSwizzle swizzle, VkComponentSwizzle component) {
+        return swizzle == VK_COMPONENT_SWIZZLE_IDENTITY || swizzle == component;
+    };
+    if (!is_identity(stored_components.r, VK_COMPONENT_SWIZZLE_R) ||
+        !is_identity(stored_components.g, VK_COMPONENT_SWIZZLE_G) ||
+        !is_identity(stored_components.b, VK_COMPONENT_SWIZZLE_B) ||
+        !is_identity(stored_components.a, VK_COMPONENT_SWIZZLE_A)) {
+        LOG_WARNING(Render_Vulkan,
+                    "Typeless storage access to a view with swizzle ({}, {}, {}, {}) uses the "
+                    "identity swizzle, format={}",
+                    static_cast<u32>(stored_components.r), static_cast<u32>(stored_components.g),
+                    static_cast<u32>(stored_components.b), static_cast<u32>(stored_components.a),
+                    static_cast<u32>(vk_format));
+    }
+    VkImageSubresourceRange subresource_range = MakeSubresourceRange(view_aspect_mask, range);
+    switch (texture_type) {
+    case TextureType::Color1D:
+    case TextureType::Color2D:
+        subresource_range.layerCount = 1;
+        break;
+    case TextureType::ColorCube:
+        subresource_range.layerCount = 6;
+        break;
+    default:
+        break;
+    }
+    static constexpr VkImageViewUsageCreateInfo storage_usage{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .usage = VK_IMAGE_USAGE_STORAGE_BIT,
+    };
+    return device->GetLogical().CreateImageView({
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = &storage_usage,
+        .flags = 0,
+        .image = image_handle,
+        .viewType = ToImageViewType(texture_type),
+        .format = vk_format,
+        .components{
+            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        },
+        .subresourceRange = subresource_range,
     });
 }
 
