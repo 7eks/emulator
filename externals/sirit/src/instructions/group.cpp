@@ -65,6 +65,12 @@ Id Module::OpGroupNonUniformShuffleXor(Id result_type, Id scope, Id value, Id ma
                  << mask << EndOp{};
 }
 
+Id Module::OpGroupNonUniformQuadSwap(Id result_type, Id scope, Id value, Id direction) {
+    code->Reserve(6);
+    return *code << OpId{spv::Op::OpGroupNonUniformQuadSwap, result_type} << scope << value
+                 << direction << EndOp{};
+}
+
 Id Module::OpGroupNonUniformAll(Id result_type, Id scope, Id predicate) {
    code->Reserve(5);
    return *code << OpId{spv::Op::OpGroupNonUniformAll, result_type} << scope << predicate << EndOp{};

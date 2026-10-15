@@ -1179,6 +1179,10 @@ public:
     /// group xor'ed with mask.
     Id OpGroupNonUniformShuffleXor(Id result_type, Id scope, Id value, Id mask);
 
+    /// Swap Value with another invocation of the quad: Direction 0 horizontally, 1 vertically,
+    /// 2 diagonally. Direction must come from a constant instruction.
+    Id OpGroupNonUniformQuadSwap(Id result_type, Id scope, Id value, Id direction);
+
     /// Evaluates a predicate for all active invocations in the group, resulting in
     /// true if predicate evaluates to true for all active invocations in the
     /// group, otherwise the result is false.
