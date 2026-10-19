@@ -108,11 +108,6 @@ public:
         return build_failed.load(std::memory_order::acquire);
     }
 
-    /// Whether a draw with this pipeline can write memory other than its render targets
-    [[nodiscard]] bool WritesMemory() const noexcept {
-        return writes_memory;
-    }
-
     /// Vertex shader stores the rasterizer performs, see Shader::PointerStoreDescriptor
     [[nodiscard]] std::span<const Shader::PointerStoreDescriptor> VertexPointerStores()
         const noexcept {
@@ -192,7 +187,6 @@ private:
     std::mutex build_mutex;
     std::atomic_bool is_built{false};
     std::atomic_bool build_failed{false};
-    bool writes_memory{false};
     bool uses_push_descriptor{false};
     bool split_descriptor_sets{false};
 };

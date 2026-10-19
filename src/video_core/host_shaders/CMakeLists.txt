@@ -45,8 +45,6 @@ set(SHADER_FILES
     taa.vert
     vulkan_blit_depth_stencil.frag
     vulkan_color_clear.frag
-    vulkan_color_clear_sint.frag
-    vulkan_color_clear_uint.frag
     vulkan_color_clear.vert
     vulkan_depthstencil_clear.frag
     vulkan_fidelityfx_fsr.vert

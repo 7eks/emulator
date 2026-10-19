@@ -350,10 +350,7 @@ VkPrimitiveTopology PrimitiveTopology([[maybe_unused]] const Device& device,
     case Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology::Lines:
         return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
     case Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology::LineLoop:
-        // Vulkan has no line loop. A line strip draws every edge but the closing one; a triangle
-        // list drew filled triangles from line vertices. The closing edge needs an index
-        // conversion like the one for quads.
-        return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+        return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     case Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology::LineStrip:
         return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
     case Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology::Triangles:
@@ -386,9 +383,8 @@ VkPrimitiveTopology PrimitiveTopology([[maybe_unused]] const Device& device,
     return {};
 }
 
-VkFormat NativeVertexFormat(const Device& device,
-                            Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Type type,
-                            Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Size size) {
+VkFormat VertexFormat(const Device& device, Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Type type,
+                      Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Size size) {
     if (device.MustEmulateScaledFormats()) {
         if (type == Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Type::SScaled) {
             type = Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Type::SInt;
@@ -611,58 +607,9 @@ VkFormat NativeVertexFormat(const Device& device,
     if (format == VK_FORMAT_UNDEFINED) {
         UNIMPLEMENTED_MSG("Unimplemented vertex format of type={} and size={}", type, size);
     }
-    return format;
-}
 
-VkFormat VertexFormat(const Device& device, Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Type type,
-                      Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Size size) {
-    return device.GetSupportedFormat(NativeVertexFormat(device, type, size),
-                                     VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT, FormatType::Buffer);
-}
-
-VkFormat VertexFormat(const Device& device, Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Type type,
-                      Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Size size,
-                      u32 bytes_available) {
-    using Size = Tegra::Engines::Maxwell3D::Regs::VertexAttribute::Size;
-    // The same components one narrower, or Invalid when there is no narrower layout
-    const auto narrower{[](Size current) {
-        switch (current) {
-        case Size::Size_R32_G32_B32_A32:
-            return Size::Size_R32_G32_B32;
-        case Size::Size_R32_G32_B32:
-            return Size::Size_R32_G32;
-        case Size::Size_R32_G32:
-            return Size::Size_R32;
-        case Size::Size_R16_G16_B16_A16:
-            return Size::Size_R16_G16_B16;
-        case Size::Size_R16_G16_B16:
-            return Size::Size_R16_G16;
-        case Size::Size_R16_G16:
-            return Size::Size_R16;
-        case Size::Size_R8_G8_B8_A8:
-        case Size::Size_X8_B8_G8_R8:
-            return Size::Size_R8_G8_B8;
-        case Size::Size_R8_G8_B8:
-            return Size::Size_R8_G8;
-        case Size::Size_R8_G8:
-            return Size::Size_R8;
-        default:
-            return Size::Invalid;
-        }
-    }};
-    // Only the guest's own layout is narrowed; a host fallback that widens a format (R8G8B8 to
-    // R8G8B8A8, say) keeps every component the game declared and is left alone.
-    Tegra::Engines::Maxwell3D::Regs::VertexAttribute attribute{};
-    attribute.size.Assign(size);
-    while (attribute.SizeInBytes() > bytes_available) {
-        const Size next{narrower(attribute.size)};
-        if (next == Size::Invalid) {
-            // Packed or single component: nothing narrower, keep the layout the game declared
-            return VertexFormat(device, type, size);
-        }
-        attribute.size.Assign(next);
-    }
-    return VertexFormat(device, type, attribute.size);
+    return device.GetSupportedFormat(format, VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT,
+                                     FormatType::Buffer);
 }
 
 VkCompareOp ComparisonOp(Tegra::Engines::Maxwell3D::Regs::ComparisonOp comparison) {
