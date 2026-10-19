@@ -4,6 +4,7 @@
 #include <algorithm>
 
 #include "video_core/renderer_vulkan/vk_texture_cache.h"
+#include "video_core/renderer_vulkan/vk_zbc_clear.h"
 
 #include "common/settings.h"
 #include "video_core/host_shaders/blit_color_float_frag_spv.h"
@@ -509,8 +510,8 @@ void BlitImageHelper::BlitDepthStencil(const Framebuffer* dst_framebuffer,
     if (!device.IsExtShaderStencilExportSupported()) {
         return;
     }
-    assert(filter == Tegra::Engines::Fermi2D::Filter::Point);
-    assert(operation == Tegra::Engines::Fermi2D::Operation::SrcCopy);
+    ASSERT(filter == Tegra::Engines::Fermi2D::Filter::Point);
+    ASSERT(operation == Tegra::Engines::Fermi2D::Operation::SrcCopy);
     const BlitImagePipelineKey key{
         .renderpass = dst_framebuffer->RenderPass(),
         .operation = operation,
@@ -560,7 +561,7 @@ void BlitImageHelper::ConvertR16ToD16(const Framebuffer* dst_framebuffer,
 
 void BlitImageHelper::ConvertABGR8ToD24S8(const Framebuffer* dst_framebuffer,
                                           const ImageView& src_image_view) {
-    assert(device.IsExtShaderStencilExportSupported());
+    ASSERT(device.IsExtShaderStencilExportSupported());
     ConvertPipelineDepthTargetEx(convert_abgr8_to_d24s8_pipeline, dst_framebuffer->RenderPass(),
                                  convert_abgr8_to_d24s8_frag);
     Convert(*convert_abgr8_to_d24s8_pipeline, dst_framebuffer, src_image_view);
@@ -597,6 +598,10 @@ void BlitImageHelper::ConvertS8D24ToABGR8(const Framebuffer* dst_framebuffer,
 void BlitImageHelper::ClearColor(const Framebuffer* dst_framebuffer, u8 color_mask,
                                  const std::array<f32, 4>& clear_color,
                                  const Region2D& dst_region) {
+    // Try to use ZBC (Zero Bandwidth Clear) for efficient clearing
+    // Note: We need the format and type from the context, but for now we'll use fallback
+    // TODO: Integrate with proper format/type detection from the rendering context
+
     const BlitImagePipelineKey key{
         .renderpass = dst_framebuffer->RenderPass(),
         .operation = Tegra::Engines::Fermi2D::Operation::BlendPremult,
@@ -787,7 +792,7 @@ VkPipeline BlitImageHelper::FindOrEmplaceColorPipeline(const BlitImagePipelineKe
 }
 
 VkPipeline BlitImageHelper::FindOrEmplaceDepthStencilPipeline(const BlitImagePipelineKey& key) {
-    assert(device.IsExtShaderStencilExportSupported() && blit_depth_stencil_frag);
+    ASSERT(device.IsExtShaderStencilExportSupported() && blit_depth_stencil_frag);
     const auto it = std::ranges::find(blit_depth_stencil_keys, key);
     if (it != blit_depth_stencil_keys.end()) {
         return *blit_depth_stencil_pipelines[std::distance(blit_depth_stencil_keys.begin(), it)];

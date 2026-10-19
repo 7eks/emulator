@@ -141,12 +141,12 @@ Status BufferQueueProducer::WaitForFreeSlotThenRelock(bool async, s32* found, St
 
         // Free up any buffers that are in slots beyond the max buffer count
         for (s32 s = max_buffer_count; s < BufferQueueDefs::NUM_BUFFER_SLOTS; ++s) {
-            assert(slots[s].buffer_state == BufferState::Free &&
-                   "slot={} state={} max_buffer_count={} override={} queue_size={} "
-                   "preallocated={}" &&
-                   (void(s), void(slots[s].buffer_state), void(max_buffer_count),
-                    void(core->override_max_buffer_count), void(core->queue.size()),
-                    void(slots[s].is_preallocated), true));
+            ASSERT_MSG(slots[s].buffer_state == BufferState::Free,
+                       "slot={} state={} max_buffer_count={} override={} queue_size={} "
+                       "preallocated={}",
+                       s, slots[s].buffer_state, max_buffer_count,
+                       core->override_max_buffer_count, core->queue.size(),
+                       slots[s].is_preallocated);
             if (slots[s].graphic_buffer != nullptr && slots[s].buffer_state == BufferState::Free &&
                 !slots[s].is_preallocated) {
                 core->FreeBufferLocked(s);
@@ -619,7 +619,7 @@ Status BufferQueueProducer::Query(NativeWindow what, s32* out_value) {
         value = core->consumer_usage_bit;
         break;
     default:
-        assert(false);
+        ASSERT(false);
         return Status::BadValue;
     }
 
@@ -929,7 +929,7 @@ void BufferQueueProducer::Transact(u32 code, std::span<const u8> parcel_data,
         break;
     }
     default:
-        assert(false && "Unimplemented TransactionId {}" && (void(code), true));
+        ASSERT_MSG(false, "Unimplemented TransactionId {}", code);
         break;
     }
 

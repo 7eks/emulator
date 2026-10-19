@@ -27,10 +27,7 @@
 
 #endif // ^^^ Linux ^^^
 
-#include <algorithm>
-#include <array>
 #include <atomic>
-#include <cassert>
 #include <condition_variable>
 #include <cstdio>
 #include <limits>
@@ -44,7 +41,6 @@
 #include "common/free_region_manager.h"
 #include "common/host_memory.h"
 #include "common/logging.h"
-#include "common/polyfill_thread.h"
 
 namespace Common {
 
@@ -125,7 +121,7 @@ static void GetFuncAddress(Common::DynamicLibrary& dll, const char* name, T& pfn
 
 class HostMemory::Impl {
 public:
-    explicit Impl(size_t backing_size_, size_t virtual_size_, std::span<const int>, size_t)
+    explicit Impl(size_t backing_size_, size_t virtual_size_)
         : backing_size{backing_size_}, virtual_size{virtual_size_}, process{GetCurrentProcess()},
           kernelbase_dll("Kernelbase") {
         if (!kernelbase_dll.IsOpen()) {
@@ -185,7 +181,7 @@ public:
         if (!IsNiechePlaceholder(virtual_offset, length)) {
             Split(virtual_offset, length);
         }
-        assert(placeholders.find({virtual_offset, virtual_offset + length}) == placeholders.end());
+        ASSERT(placeholders.find({virtual_offset, virtual_offset + length}) == placeholders.end());
         TrackPlaceholder(virtual_offset, host_offset, length);
 
         MapView(virtual_offset, host_offset, length);
@@ -227,7 +223,7 @@ public:
 
     void EnableDirectMappedAddress() {
         // TODO
-        std::unreachable();
+        UNREACHABLE();
     }
 
     const size_t backing_size; ///< Size of the backing memory in bytes
@@ -279,11 +275,11 @@ private:
         const size_t placeholder_end = it->upper();
         const size_t unmap_begin = std::max(virtual_offset, placeholder_begin);
         const size_t unmap_end = std::min(virtual_offset + length, placeholder_end);
-        assert(unmap_begin >= placeholder_begin && unmap_begin < placeholder_end);
-        assert(unmap_end <= placeholder_end && unmap_end > placeholder_begin);
+        ASSERT(unmap_begin >= placeholder_begin && unmap_begin < placeholder_end);
+        ASSERT(unmap_end <= placeholder_end && unmap_end > placeholder_begin);
 
         const auto host_pointer_it = placeholder_host_pointers.find(placeholder_begin);
-        assert(host_pointer_it != placeholder_host_pointers.end());
+        ASSERT(host_pointer_it != placeholder_host_pointers.end());
         const size_t host_offset = host_pointer_it->second;
 
         const bool split_left = unmap_begin > placeholder_begin;
@@ -458,14 +454,8 @@ static void* ChooseVirtualBase(size_t virtual_size) {
 
 class HostMemory::Impl {
 public:
-    explicit Impl(size_t backing_size_, size_t virtual_size_, std::span<const int> backing_fds,
-                  size_t chunk_size_)
-        : backing_size{backing_size_}, virtual_size{virtual_size_},
-          chunk_size{backing_fds.empty() ? backing_size_ : chunk_size_} {
-        assert(backing_fds.size() <= MaxBackingChunks &&
-               (backing_fds.empty() || chunk_size * backing_fds.size() == backing_size));
-        fds.fill(-1);
-        std::ranges::copy(backing_fds, fds.begin());
+    explicit Impl(size_t backing_size_, size_t virtual_size_)
+        : backing_size{backing_size_}, virtual_size{virtual_size_} {
         bool good = false;
         SCOPE_EXIT {
             if (!good) {
@@ -480,36 +470,28 @@ public:
         }
 
         // Backing memory initialization
-        if (backing_fds.empty()) {
 #if defined(__FreeBSD__) && __FreeBSD__ < 13
-            // XXX Drop after FreeBSD 12.* reaches EOL on 2024-06-30
-            fds[0] = shm_open(SHM_ANON, O_RDWR, 0600);
+        // XXX Drop after FreeBSD 12.* reaches EOL on 2024-06-30
+        fd = shm_open(SHM_ANON, O_RDWR, 0600);
 #else
-            fds[0] = memfd_create("HostMemory", 0);
+        fd = memfd_create("HostMemory", 0);
 #endif
-            if (fds[0] < 0) {
-                LOG_CRITICAL(HW_Memory, "memfd_create failed: {}", strerror(errno));
-                throw std::bad_alloc{};
-            }
-
-            // Defined to extend the file with zeros
-            int ret = ftruncate(fds[0], backing_size);
-            if (ret != 0) {
-                LOG_CRITICAL(HW_Memory, "ftruncate failed with {}, are you out-of-memory?",
-                             strerror(errno));
-                throw std::bad_alloc{};
-            }
+        if (fd < 0) {
+            LOG_CRITICAL(HW_Memory, "memfd_create failed: {}", strerror(errno));
+            throw std::bad_alloc{};
         }
 
-        // The backing view is one address range: a reservation with every chunk mapped over it.
-        backing_base = static_cast<u8*>(mmap(nullptr, backing_size, PROT_NONE,
-                                             MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0));
-        bool mapped = backing_base != MAP_FAILED;
-        for (size_t offset = 0; mapped && offset < backing_size; offset += chunk_size) {
-            mapped = mmap(backing_base + offset, chunk_size, PROT_READ | PROT_WRITE,
-                          MAP_SHARED | MAP_FIXED, fds[offset / chunk_size], 0) != MAP_FAILED;
+        // Defined to extend the file with zeros
+        int ret = ftruncate(fd, backing_size);
+        if (ret != 0) {
+            LOG_CRITICAL(HW_Memory, "ftruncate failed with {}, are you out-of-memory?",
+                         strerror(errno));
+            throw std::bad_alloc{};
         }
-        if (!mapped) {
+
+        backing_base = static_cast<u8*>(
+            mmap(nullptr, backing_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0));
+        if (backing_base == MAP_FAILED) {
             LOG_CRITICAL(HW_Memory, "mmap failed: {}", strerror(errno));
             throw std::bad_alloc{};
         }
@@ -531,14 +513,14 @@ public:
                                                           : max_map_count;
             LOG_INFO(HW_Memory, "Host VMA limit: max_map_count={}, budget={}, reserve={}",
                      max_map_count, vma_budget, max_map_count - vma_budget);
-            vma_sampler_thread =
-                std::jthread([this](std::stop_token stop_token) { VmaSamplerLoop(stop_token); });
+            vma_sampler_thread = std::thread([this] { VmaSamplerLoop(); });
         }
         good = true;
     }
 
     ~Impl() {
-        vma_sampler_thread.request_stop();
+        vma_sampler_stop.store(true, std::memory_order_release);
+        vma_sampler_cv.notify_one();
         if (vma_sampler_thread.joinable()) {
             vma_sampler_thread.join();
         }
@@ -584,31 +566,24 @@ public:
         }
 #endif
 
-        // Each chunk of the backing is its own file descriptor, so a range that crosses a chunk
-        // boundary is mapped in pieces.
-        for (size_t done = 0; done < length;) {
-            const BackingChunkRange part =
-                FirstChunkRange(host_offset + done, length - done, chunk_size);
-            void* ret = mmap(virtual_base + virtual_offset + done, part.length, flags,
-                             MAP_SHARED | MAP_FIXED, fds[part.chunk], part.offset);
-            if (ret == MAP_FAILED) [[unlikely]] {
-                const int saved_errno = errno;
-                LOG_CRITICAL(
-                    HW_Memory,
-                    "HostMemory::Map mmap failed: error={} ({}) map_id={} unmap_count={} "
-                    "requested_virtual_offset={:#x} adjusted_virtual_offset={:#x} "
-                    "host_offset={:#x} requested_length={:#x} adjusted_length={:#x} "
-                    "perms={:#x} prot_flags={:#x} chunk={} fd={} virtual_base={} target={} "
-                    "backing_size={:#x} virtual_size={:#x}",
-                    saved_errno, strerror(saved_errno), map_id,
-                    unmap_count.load(std::memory_order_relaxed), requested_virtual_offset,
-                    virtual_offset, host_offset, requested_length, length, static_cast<u32>(perms),
-                    flags, part.chunk, fds[part.chunk], static_cast<void*>(virtual_base),
-                    static_cast<void*>(virtual_base + virtual_offset), backing_size, virtual_size);
-                Common::Log::Stop();
-                Crash();
-            }
-            done += part.length;
+        void* ret = mmap(virtual_base + virtual_offset, length, flags, MAP_SHARED | MAP_FIXED, fd,
+                         host_offset);
+        if (ret == MAP_FAILED) [[unlikely]] {
+            const int saved_errno = errno;
+            LOG_CRITICAL(HW_Memory,
+                         "HostMemory::Map mmap failed: error={} ({}) map_id={} unmap_count={} "
+                         "requested_virtual_offset={:#x} adjusted_virtual_offset={:#x} "
+                         "host_offset={:#x} requested_length={:#x} adjusted_length={:#x} "
+                         "perms={:#x} prot_flags={:#x} fd={} virtual_base={} target={} "
+                         "backing_size={:#x} virtual_size={:#x}",
+                         saved_errno, strerror(saved_errno), map_id,
+                         unmap_count.load(std::memory_order_relaxed), requested_virtual_offset,
+                         virtual_offset, host_offset, requested_length, length,
+                         static_cast<u32>(perms), flags, fd, static_cast<void*>(virtual_base),
+                         static_cast<void*>(virtual_base + virtual_offset), backing_size,
+                         virtual_size);
+            Common::Log::Stop();
+            Crash();
         }
 
         RequestVmaSample(map_id);
@@ -670,8 +645,8 @@ public:
             flags |= PROT_EXEC;
         }
 #endif
-        [[maybe_unused]] int ret = mprotect(virtual_base + virtual_offset, length, flags);
-        assert(ret == 0 && "mprotect failed: {}" && (void(errno), true));
+        int ret = mprotect(virtual_base + virtual_offset, length, flags);
+        ASSERT_MSG(ret == 0, "mprotect failed: {}", strerror(errno));
     }
 
     void EnableDirectMappedAddress() {
@@ -680,7 +655,6 @@ public:
 
     const size_t backing_size; ///< Size of the backing memory in bytes
     const size_t virtual_size; ///< Size of the virtual address placeholder in bytes
-    const size_t chunk_size;   ///< Size of each backing file descriptor in bytes
 
     u8* backing_base{reinterpret_cast<u8*>(MAP_FAILED)};
     u8* virtual_base{reinterpret_cast<u8*>(MAP_FAILED)};
@@ -725,14 +699,15 @@ private:
         vma_sampler_cv.notify_one();
     }
 
-    void VmaSamplerLoop(std::stop_token stop_token) {
+    void VmaSamplerLoop() {
         u64 sampled_map_id = 0;
         while (true) {
             std::unique_lock lock{vma_sampler_mutex};
-            Common::CondvarWait(vma_sampler_cv, lock, stop_token, [this, sampled_map_id] {
-                return requested_vma_sample.load(std::memory_order_acquire) != sampled_map_id;
+            vma_sampler_cv.wait(lock, [this, sampled_map_id] {
+                return vma_sampler_stop.load(std::memory_order_acquire) ||
+                       requested_vma_sample.load(std::memory_order_acquire) != sampled_map_id;
             });
-            if (stop_token.stop_requested()) {
+            if (vma_sampler_stop.load(std::memory_order_acquire)) {
                 return;
             }
 
@@ -787,20 +762,18 @@ private:
     /// Release all resources in the object
     void Release() {
         if (virtual_map_base != MAP_FAILED) {
-            [[maybe_unused]] int ret = munmap(virtual_map_base, virtual_size);
-            assert(ret == 0 && "munmap failed: {}" && (void(errno), true));
+            int ret = munmap(virtual_map_base, virtual_size);
+            ASSERT_MSG(ret == 0, "munmap failed: {}", strerror(errno));
         }
 
         if (backing_base != MAP_FAILED) {
-            [[maybe_unused]] int ret = munmap(backing_base, backing_size);
-            assert(ret == 0 && "munmap failed: {}" && (void(errno), true));
+            int ret = munmap(backing_base, backing_size);
+            ASSERT_MSG(ret == 0, "munmap failed: {}", strerror(errno));
         }
 
-        for (const int fd : fds) {
-            if (fd != -1) {
-                [[maybe_unused]] int ret = close(fd);
-                assert(ret == 0 && "close failed: {}" && (void(errno), true));
-            }
+        if (fd != -1) {
+            int ret = close(fd);
+            ASSERT_MSG(ret == 0, "close failed: {}", strerror(errno));
         }
     }
 
@@ -825,16 +798,16 @@ private:
         }
     }
 
-    /// Backing file descriptors in order: one memfd, or the chunks the caller passed. -1 unused.
-    std::array<int, MaxBackingChunks> fds;
+    int fd{-1}; // memfd file descriptor, -1 is the error value of memfd_create
     FreeRegionManager free_manager{};
     std::atomic<u64> map_count{0};
     std::atomic<u64> unmap_count{0};
     std::atomic<u64> peak_vma_count{0};
     std::atomic<u64> requested_vma_sample{0};
+    std::atomic<bool> vma_sampler_stop{false};
     std::mutex vma_sampler_mutex;
-    std::condition_variable_any vma_sampler_cv;
-    std::jthread vma_sampler_thread;
+    std::condition_variable vma_sampler_cv;
+    std::thread vma_sampler_thread;
     u64 max_map_count{};
     u64 vma_budget{};
 };
@@ -843,8 +816,7 @@ private:
 
 class HostMemory::Impl {
 public:
-    explicit Impl(size_t backing_size, size_t /*virtual_size*/, std::span<const int>, size_t)
-        : backing_buffer{backing_size} {
+    explicit Impl(size_t backing_size, size_t /*virtual_size*/) : backing_buffer{backing_size} {
         backing_base = backing_buffer.data();
     }
 
@@ -865,16 +837,13 @@ private:
 
 #endif // ^^^ Generic ^^^
 
-HostMemory::HostMemory(size_t backing_size_, size_t virtual_size_,
-                       std::span<const int> backing_fds, size_t chunk_size)
+HostMemory::HostMemory(size_t backing_size_, size_t virtual_size_)
     : backing_size(backing_size_)
     , virtual_size(virtual_size_)
 {
     // Try to allocate a fastmem arena.
     // The implementation will fail with std::bad_alloc on errors.
-    impl = std::make_unique<HostMemory::Impl>(AlignUp(backing_size, PageAlignment),
-                                              AlignUp(virtual_size, PageAlignment) + HugePageSize,
-                                              backing_fds, chunk_size);
+    impl = std::make_unique<HostMemory::Impl>(AlignUp(backing_size, PageAlignment), AlignUp(virtual_size, PageAlignment) + HugePageSize);
     backing_base = impl->backing_base;
     virtual_base = impl->virtual_base;
     if (virtual_base) {
