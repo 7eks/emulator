@@ -135,7 +135,6 @@ RendererVulkan::RendererVulkan(Core::Frontend::EmuWindow& emu_window,
 
 RendererVulkan::~RendererVulkan() {
     scheduler.RegisterOnSubmit([] {});
-    std::scoped_lock lock{scheduler.submit_mutex};
     void(device.GetLogical().WaitIdle());
 }
 

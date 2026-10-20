@@ -18,11 +18,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/random.h>
-#include <sys/stat.h>
 #include <unistd.h>
-#ifdef __linux__
-#include <sys/sysmacros.h>
-#endif
 #include "common/scope_exit.h"
 
 #ifndef MAP_NORESERVE
@@ -31,30 +27,20 @@
 
 #endif // ^^^ Linux ^^^
 
-#include <algorithm>
-#include <array>
 #include <atomic>
-#include <cassert>
-#include <cerrno>
-#include <charconv>
-#include <chrono>
 #include <condition_variable>
 #include <cstdio>
 #include <limits>
 #include <mutex>
-#include <optional>
 #include <random>
-#include <shared_mutex>
 #include <stdexcept>
 #include <thread>
-#include <vector>
 
 #include "common/alignment.h"
 #include "common/assert.h"
 #include "common/free_region_manager.h"
 #include "common/host_memory.h"
 #include "common/logging.h"
-#include "common/polyfill_thread.h"
 
 namespace Common {
 
@@ -85,45 +71,6 @@ constexpr size_t HugePageSize = 0x200000;
     Common::Log::Stop();
     Crash();
     throw std::runtime_error("HostMemory invariant failed");
-}
-
-// Format, from proc(5): "start-end perms offset major:minor inode   path", numbers in hex
-// except the inode, which is decimal.
-bool ParseHostMapping(std::string_view line, HostMapping& out) noexcept {
-    const char* p = line.data();
-    const char* const end = p + line.size();
-    const auto number = [&](u64& value, int base, char separator) {
-        const auto [next, ec] = std::from_chars(p, end, value, base);
-        if (ec != std::errc{} || next == end || *next != separator) {
-            return false;
-        }
-        p = next + 1;
-        return true;
-    };
-    u64 major = 0;
-    u64 minor = 0;
-    if (!number(out.start, 16, '-') || !number(out.end, 16, ' ') || end - p < 5 || p[4] != ' ') {
-        return false;
-    }
-    out.perms = MemoryPermission{};
-    if (p[0] == 'r') {
-        out.perms |= MemoryPermission::Read;
-    }
-    if (p[1] == 'w') {
-        out.perms |= MemoryPermission::Write;
-    }
-    if (p[2] == 'x') {
-        out.perms |= MemoryPermission::Execute;
-    }
-    out.shared = p[3] == 's';
-    p += 5;
-    if (!number(out.offset, 16, ' ') || !number(major, 16, ':') || !number(minor, 16, ' ')) {
-        return false;
-    }
-    out.device = (major << 32) | minor;
-    // The inode ends the line when there is no path.
-    const auto [next, ec] = std::from_chars(p, end, out.inode, 10);
-    return ec == std::errc{} && (next == end || *next == ' ' || *next == '\n');
 }
 
 #ifdef _WIN32
@@ -174,7 +121,7 @@ static void GetFuncAddress(Common::DynamicLibrary& dll, const char* name, T& pfn
 
 class HostMemory::Impl {
 public:
-    explicit Impl(size_t backing_size_, size_t virtual_size_, std::span<const int>, size_t)
+    explicit Impl(size_t backing_size_, size_t virtual_size_)
         : backing_size{backing_size_}, virtual_size{virtual_size_}, process{GetCurrentProcess()},
           kernelbase_dll("Kernelbase") {
         if (!kernelbase_dll.IsOpen()) {
@@ -234,7 +181,7 @@ public:
         if (!IsNiechePlaceholder(virtual_offset, length)) {
             Split(virtual_offset, length);
         }
-        assert(placeholders.find({virtual_offset, virtual_offset + length}) == placeholders.end());
+        ASSERT(placeholders.find({virtual_offset, virtual_offset + length}) == placeholders.end());
         TrackPlaceholder(virtual_offset, host_offset, length);
 
         MapView(virtual_offset, host_offset, length);
@@ -276,7 +223,7 @@ public:
 
     void EnableDirectMappedAddress() {
         // TODO
-        std::unreachable();
+        UNREACHABLE();
     }
 
     const size_t backing_size; ///< Size of the backing memory in bytes
@@ -328,11 +275,11 @@ private:
         const size_t placeholder_end = it->upper();
         const size_t unmap_begin = std::max(virtual_offset, placeholder_begin);
         const size_t unmap_end = std::min(virtual_offset + length, placeholder_end);
-        assert(unmap_begin >= placeholder_begin && unmap_begin < placeholder_end);
-        assert(unmap_end <= placeholder_end && unmap_end > placeholder_begin);
+        ASSERT(unmap_begin >= placeholder_begin && unmap_begin < placeholder_end);
+        ASSERT(unmap_end <= placeholder_end && unmap_end > placeholder_begin);
 
         const auto host_pointer_it = placeholder_host_pointers.find(placeholder_begin);
-        assert(host_pointer_it != placeholder_host_pointers.end());
+        ASSERT(host_pointer_it != placeholder_host_pointers.end());
         const size_t host_offset = host_pointer_it->second;
 
         const bool split_left = unmap_begin > placeholder_begin;
@@ -507,14 +454,8 @@ static void* ChooseVirtualBase(size_t virtual_size) {
 
 class HostMemory::Impl {
 public:
-    explicit Impl(size_t backing_size_, size_t virtual_size_, std::span<const int> backing_fds,
-                  size_t chunk_size_)
-        : backing_size{backing_size_}, virtual_size{virtual_size_},
-          chunk_size{backing_fds.empty() ? backing_size_ : chunk_size_} {
-        assert(backing_fds.size() <= MaxBackingChunks &&
-               (backing_fds.empty() || chunk_size * backing_fds.size() == backing_size));
-        fds.fill(-1);
-        std::ranges::copy(backing_fds, fds.begin());
+    explicit Impl(size_t backing_size_, size_t virtual_size_)
+        : backing_size{backing_size_}, virtual_size{virtual_size_} {
         bool good = false;
         SCOPE_EXIT {
             if (!good) {
@@ -529,36 +470,28 @@ public:
         }
 
         // Backing memory initialization
-        if (backing_fds.empty()) {
 #if defined(__FreeBSD__) && __FreeBSD__ < 13
-            // XXX Drop after FreeBSD 12.* reaches EOL on 2024-06-30
-            fds[0] = shm_open(SHM_ANON, O_RDWR, 0600);
+        // XXX Drop after FreeBSD 12.* reaches EOL on 2024-06-30
+        fd = shm_open(SHM_ANON, O_RDWR, 0600);
 #else
-            fds[0] = memfd_create("HostMemory", 0);
+        fd = memfd_create("HostMemory", 0);
 #endif
-            if (fds[0] < 0) {
-                LOG_CRITICAL(HW_Memory, "memfd_create failed: {}", strerror(errno));
-                throw std::bad_alloc{};
-            }
-
-            // Defined to extend the file with zeros
-            int ret = ftruncate(fds[0], backing_size);
-            if (ret != 0) {
-                LOG_CRITICAL(HW_Memory, "ftruncate failed with {}, are you out-of-memory?",
-                             strerror(errno));
-                throw std::bad_alloc{};
-            }
+        if (fd < 0) {
+            LOG_CRITICAL(HW_Memory, "memfd_create failed: {}", strerror(errno));
+            throw std::bad_alloc{};
         }
 
-        // The backing view is one address range: a reservation with every chunk mapped over it.
-        backing_base = static_cast<u8*>(mmap(nullptr, backing_size, PROT_NONE,
-                                             MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0));
-        bool mapped = backing_base != MAP_FAILED;
-        for (size_t offset = 0; mapped && offset < backing_size; offset += chunk_size) {
-            mapped = mmap(backing_base + offset, chunk_size, PROT_READ | PROT_WRITE,
-                          MAP_SHARED | MAP_FIXED, fds[offset / chunk_size], 0) != MAP_FAILED;
+        // Defined to extend the file with zeros
+        int ret = ftruncate(fd, backing_size);
+        if (ret != 0) {
+            LOG_CRITICAL(HW_Memory, "ftruncate failed with {}, are you out-of-memory?",
+                         strerror(errno));
+            throw std::bad_alloc{};
         }
-        if (!mapped) {
+
+        backing_base = static_cast<u8*>(
+            mmap(nullptr, backing_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0));
+        if (backing_base == MAP_FAILED) {
             LOG_CRITICAL(HW_Memory, "mmap failed: {}", strerror(errno));
             throw std::bad_alloc{};
         }
@@ -574,34 +507,20 @@ public:
 #endif
 
         free_manager.SetAddressSpace(virtual_base, virtual_size);
-
-        // In the emulator a backing handed in by the caller is GPU memory exported as dma_bufs
-        // (System::UseGuestMemoryFromGpu in core.cpp). The kernel does not merge neighbouring
-        // mappings of those, so MergeMappings does. Remember which files the backing is, as
-        // /proc/self/maps names them.
-        merge_by_hand = !backing_fds.empty();
-        for (size_t chunk = 0; merge_by_hand && chunk < backing_fds.size(); ++chunk) {
-            struct stat st {};
-            merge_by_hand = fstat(fds[chunk], &st) == 0;
-            backing_files[chunk] = {(static_cast<u64>(major(st.st_dev)) << 32) | minor(st.st_dev),
-                                    static_cast<u64>(st.st_ino)};
-        }
-
         max_map_count = ReadUnsignedFile("/proc/sys/vm/max_map_count");
         if (max_map_count != 0) {
             vma_budget = max_map_count > VmaSafetyReserve ? max_map_count - VmaSafetyReserve
                                                           : max_map_count;
-            merge_threshold = vma_budget / 2;
             LOG_INFO(HW_Memory, "Host VMA limit: max_map_count={}, budget={}, reserve={}",
                      max_map_count, vma_budget, max_map_count - vma_budget);
-            vma_sampler_thread =
-                std::jthread([this](std::stop_token stop_token) { VmaSamplerLoop(stop_token); });
+            vma_sampler_thread = std::thread([this] { VmaSamplerLoop(); });
         }
         good = true;
     }
 
     ~Impl() {
-        vma_sampler_thread.request_stop();
+        vma_sampler_stop.store(true, std::memory_order_release);
+        vma_sampler_cv.notify_one();
         if (vma_sampler_thread.joinable()) {
             vma_sampler_thread.join();
         }
@@ -630,51 +549,44 @@ public:
             return;
         }
 
-        std::shared_lock layout_lock{layout_mutex};
-
         // We are removing a placeholder.
         free_manager.AllocateBlock(virtual_base + virtual_offset, length);
 
-        const int flags = ToProt(perms);
+        // Deduce mapping protection flags.
+        int flags = PROT_NONE;
+        if (True(perms & MemoryPermission::Read)) {
+            flags |= PROT_READ;
+        }
+        if (True(perms & MemoryPermission::Write)) {
+            flags |= PROT_WRITE;
+        }
+#ifdef ARCHITECTURE_arm64
+        if (True(perms & MemoryPermission::Execute)) {
+            flags |= PROT_EXEC;
+        }
+#endif
 
-        // Each chunk of the backing is its own file descriptor, so a range that crosses a chunk
-        // boundary is mapped in pieces.
-        for (size_t done = 0; done < length;) {
-            const BackingChunkRange part =
-                FirstChunkRange(host_offset + done, length - done, chunk_size);
-            const auto map_part = [&] {
-                return mmap(virtual_base + virtual_offset + done, part.length, flags,
-                            MAP_SHARED | MAP_FIXED, fds[part.chunk], part.offset);
-            };
-            void* ret = map_part();
-            if (ret == MAP_FAILED && errno == ENOMEM && merge_by_hand) {
-                layout_lock.unlock();
-                MergeMappings("mmap ran out of mappings");
-                layout_lock.lock();
-                ret = map_part();
-            }
-            if (ret == MAP_FAILED) [[unlikely]] {
-                const int saved_errno = errno;
-                LOG_CRITICAL(
-                    HW_Memory,
-                    "HostMemory::Map mmap failed: error={} ({}) map_id={} unmap_count={} "
-                    "requested_virtual_offset={:#x} adjusted_virtual_offset={:#x} "
-                    "host_offset={:#x} requested_length={:#x} adjusted_length={:#x} "
-                    "perms={:#x} prot_flags={:#x} chunk={} fd={} virtual_base={} target={} "
-                    "backing_size={:#x} virtual_size={:#x}",
-                    saved_errno, strerror(saved_errno), map_id,
-                    unmap_count.load(std::memory_order_relaxed), requested_virtual_offset,
-                    virtual_offset, host_offset, requested_length, length, static_cast<u32>(perms),
-                    flags, part.chunk, fds[part.chunk], static_cast<void*>(virtual_base),
-                    static_cast<void*>(virtual_base + virtual_offset), backing_size, virtual_size);
-                Common::Log::Stop();
-                Crash();
-            }
-            done += part.length;
+        void* ret = mmap(virtual_base + virtual_offset, length, flags, MAP_SHARED | MAP_FIXED, fd,
+                         host_offset);
+        if (ret == MAP_FAILED) [[unlikely]] {
+            const int saved_errno = errno;
+            LOG_CRITICAL(HW_Memory,
+                         "HostMemory::Map mmap failed: error={} ({}) map_id={} unmap_count={} "
+                         "requested_virtual_offset={:#x} adjusted_virtual_offset={:#x} "
+                         "host_offset={:#x} requested_length={:#x} adjusted_length={:#x} "
+                         "perms={:#x} prot_flags={:#x} fd={} virtual_base={} target={} "
+                         "backing_size={:#x} virtual_size={:#x}",
+                         saved_errno, strerror(saved_errno), map_id,
+                         unmap_count.load(std::memory_order_relaxed), requested_virtual_offset,
+                         virtual_offset, host_offset, requested_length, length,
+                         static_cast<u32>(perms), flags, fd, static_cast<void*>(virtual_base),
+                         static_cast<void*>(virtual_base + virtual_offset), backing_size,
+                         virtual_size);
+            Common::Log::Stop();
+            Crash();
         }
 
-        layout_lock.unlock();
-        RequestVmaSample();
+        RequestVmaSample(map_id);
     }
 
     void Unmap(size_t virtual_offset, size_t length) {
@@ -691,23 +603,12 @@ public:
             return;
         }
 
-        std::shared_lock layout_lock{layout_mutex};
-
         // Merge with any adjacent placeholder mappings.
         auto [merged_pointer, merged_size] =
             free_manager.FreeBlock(virtual_base + virtual_offset, length);
 
-        const auto reserve = [&] {
-            return mmap(merged_pointer, merged_size, PROT_NONE,
-                        MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-        };
-        void* ret = reserve();
-        if (ret == MAP_FAILED && errno == ENOMEM && merge_by_hand) {
-            layout_lock.unlock();
-            MergeMappings("unmap ran out of mappings");
-            layout_lock.lock();
-            ret = reserve();
-        }
+        void* ret = mmap(merged_pointer, merged_size, PROT_NONE,
+                         MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
         if (ret == MAP_FAILED) [[unlikely]] {
             const int saved_errno = errno;
             LOG_CRITICAL(HW_Memory,
@@ -744,17 +645,8 @@ public:
             flags |= PROT_EXEC;
         }
 #endif
-        std::shared_lock layout_lock{layout_mutex};
         int ret = mprotect(virtual_base + virtual_offset, length, flags);
-        if (ret != 0 && errno == ENOMEM && merge_by_hand) {
-            layout_lock.unlock();
-            MergeMappings("mprotect ran out of mappings");
-            layout_lock.lock();
-            ret = mprotect(virtual_base + virtual_offset, length, flags);
-        }
-        assert(ret == 0 && "mprotect failed: {}" && (void(errno), true));
-        layout_lock.unlock();
-        RequestVmaSample();
+        ASSERT_MSG(ret == 0, "mprotect failed: {}", strerror(errno));
     }
 
     void EnableDirectMappedAddress() {
@@ -763,7 +655,6 @@ public:
 
     const size_t backing_size; ///< Size of the backing memory in bytes
     const size_t virtual_size; ///< Size of the virtual address placeholder in bytes
-    const size_t chunk_size;   ///< Size of each backing file descriptor in bytes
 
     u8* backing_base{reinterpret_cast<u8*>(MAP_FAILED)};
     u8* virtual_base{reinterpret_cast<u8*>(MAP_FAILED)};
@@ -799,43 +690,38 @@ private:
         return count;
     }
 
-    /// Asks the sampler thread to count mappings once every VmaSampleInterval layout changes
-    /// (Map, Unmap and Protect: on a dma_buf backing every one of them can add mappings).
-    void RequestVmaSample() {
-        const u64 op_id = layout_op_count.fetch_add(1, std::memory_order_relaxed) + 1;
-        if (max_map_count == 0 || op_id % VmaSampleInterval != 0) {
+    void RequestVmaSample(u64 map_id) {
+        if (max_map_count == 0 || map_id % VmaSampleInterval != 0) {
             return;
         }
 
-        requested_vma_sample.store(op_id, std::memory_order_release);
+        requested_vma_sample.store(map_id, std::memory_order_release);
         vma_sampler_cv.notify_one();
     }
 
-    void VmaSamplerLoop(std::stop_token stop_token) {
-        u64 sampled_op_id = 0;
+    void VmaSamplerLoop() {
+        u64 sampled_map_id = 0;
         while (true) {
             std::unique_lock lock{vma_sampler_mutex};
-            Common::CondvarWait(vma_sampler_cv, lock, stop_token, [this, sampled_op_id] {
-                return requested_vma_sample.load(std::memory_order_acquire) != sampled_op_id;
+            vma_sampler_cv.wait(lock, [this, sampled_map_id] {
+                return vma_sampler_stop.load(std::memory_order_acquire) ||
+                       requested_vma_sample.load(std::memory_order_acquire) != sampled_map_id;
             });
-            if (stop_token.stop_requested()) {
+            if (vma_sampler_stop.load(std::memory_order_acquire)) {
                 return;
             }
 
-            sampled_op_id = requested_vma_sample.load(std::memory_order_acquire);
+            sampled_map_id = requested_vma_sample.load(std::memory_order_acquire);
             lock.unlock();
-            const u64 current = SampleVmaUsage(sampled_op_id);
-            if (merge_by_hand && current >= merge_threshold.load(std::memory_order_relaxed)) {
-                MergeMappings("mapping count high");
-            }
+            SampleVmaUsage(sampled_map_id);
         }
     }
 
-    /// Counts the process's mappings and logs when the count is high. Returns the count.
-    u64 SampleVmaUsage(u64 op_id) {
+    void SampleVmaUsage(u64 map_id) {
+
         const u64 current = CountProcessVmas();
         if (current == 0) {
-            return 0;
+            return;
         }
 
         u64 previous_peak = peak_vma_count.load(std::memory_order_relaxed);
@@ -844,152 +730,50 @@ private:
                                                      std::memory_order_relaxed)) {
         }
 
-        if (op_id % (VmaSampleInterval * 8) == 0) {
+        if (map_id % (VmaSampleInterval * 8) == 0) {
             LOG_INFO(HW_Memory,
-                     "Host VMA sample: current={}, peak={}, budget={}, max_map_count={}, op_id={}, "
+                     "Host VMA sample: current={}, peak={}, budget={}, max_map_count={}, map_id={}, "
                      "unmap_count={}",
                      current, peak_vma_count.load(std::memory_order_relaxed), vma_budget,
-                     max_map_count, op_id, unmap_count.load(std::memory_order_relaxed));
+                     max_map_count, map_id, unmap_count.load(std::memory_order_relaxed));
         }
 
         if (current >= vma_budget) {
             LOG_CRITICAL(HW_Memory,
                          "Host VMA budget exhausted: current={}, peak={}, budget={}, "
-                         "max_map_count={}, op_id={}, unmap_count={}",
+                         "max_map_count={}, map_id={}, unmap_count={}",
                          current, peak_vma_count.load(std::memory_order_relaxed), vma_budget,
-                         max_map_count, op_id, unmap_count.load(std::memory_order_relaxed));
+                         max_map_count, map_id, unmap_count.load(std::memory_order_relaxed));
         } else if (current >= (vma_budget * 9) / 10) {
             LOG_WARNING(HW_Memory,
                         "Host VMA usage critical: current={}, peak={}, budget={}, "
-                        "max_map_count={}, op_id={}",
+                        "max_map_count={}, map_id={}",
                         current, peak_vma_count.load(std::memory_order_relaxed), vma_budget,
-                        max_map_count, op_id);
+                        max_map_count, map_id);
         } else if (current >= (vma_budget * 3) / 4) {
             LOG_WARNING(HW_Memory,
                         "Host VMA usage high: current={}, peak={}, budget={}, max_map_count={}, "
-                        "op_id={}",
+                        "map_id={}",
                         current, peak_vma_count.load(std::memory_order_relaxed), vma_budget,
-                        max_map_count, op_id);
+                        max_map_count, map_id);
         }
-        return current;
-    }
-
-    static int ToProt(MemoryPermission perms) {
-        int prot = PROT_NONE;
-        if (True(perms & MemoryPermission::Read)) {
-            prot |= PROT_READ;
-        }
-        if (True(perms & MemoryPermission::Write)) {
-            prot |= PROT_WRITE;
-        }
-#ifdef ARCHITECTURE_arm64
-        if (True(perms & MemoryPermission::Execute)) {
-            prot |= PROT_EXEC;
-        }
-#endif
-        return prot;
-    }
-
-    /// The backing chunk `mapping` maps, if it maps one.
-    std::optional<size_t> BackingChunkOf(const HostMapping& mapping) const {
-        for (size_t chunk = 0; chunk < MaxBackingChunks && fds[chunk] != -1; ++chunk) {
-            if (backing_files[chunk].device == mapping.device &&
-                backing_files[chunk].inode == mapping.inode) {
-                return chunk;
-            }
-        }
-        return std::nullopt;
-    }
-
-    /// Does for the backing what the kernel does for a memfd: each run of neighbouring mappings
-    /// of one backing chunk, at consecutive offsets and with the same permissions, is mapped
-    /// again with one mmap, which replaces the run with a single mapping. The memory is shared,
-    /// so the contents stay. The layout lock is held exclusively, so the permissions read from
-    /// /proc/self/maps cannot change before the run is mapped again. Measured on the AYN Thor
-    /// with a Turnip dma_buf (tools/thor/uma-probe/vma_merge_probe.cpp, 2026-10-12): 60000
-    /// one-page mappings read in 37 ms and merged in 44 ms, contents intact.
-    void MergeMappings(const char* reason) {
-        std::unique_lock layout_lock{layout_mutex};
-        const auto begin = std::chrono::steady_clock::now();
-        const u64 low = reinterpret_cast<uintptr_t>(virtual_map_base);
-        const u64 high = low + virtual_size;
-
-        // Read the whole list before changing the layout.
-        std::vector<HostMapping> mappings;
-        u64 lines = 0;
-        {
-            std::FILE* file = std::fopen("/proc/self/maps", "r");
-            if (!file) {
-                return;
-            }
-            SCOPE_EXIT { std::fclose(file); };
-            char line[512];
-            while (std::fgets(line, sizeof(line), file)) {
-                ++lines;
-                HostMapping mapping{};
-                if (ParseHostMapping(line, mapping) && mapping.shared && mapping.start >= low &&
-                    mapping.end <= high && BackingChunkOf(mapping)) {
-                    mappings.push_back(mapping);
-                }
-            }
-        }
-
-        u64 merged = 0;
-        for (size_t first = 0; first < mappings.size();) {
-            size_t last = first;
-            while (last + 1 < mappings.size() &&
-                   ContinuesMapping(mappings[last], mappings[last + 1])) {
-                ++last;
-            }
-            if (last > first) {
-                const HostMapping& run = mappings[first];
-                const size_t length = mappings[last].end - run.start;
-                const size_t chunk = *BackingChunkOf(run);
-                if (mmap(reinterpret_cast<void*>(run.start), length, ToProt(run.perms),
-                         MAP_SHARED | MAP_FIXED, fds[chunk],
-                         static_cast<off_t>(run.offset)) == MAP_FAILED) [[unlikely]] {
-                    const int saved_errno = errno;
-                    LOG_CRITICAL(HW_Memory,
-                                 "HostMemory merge mmap failed: error={} ({}) start={:#x} "
-                                 "length={:#x} chunk={} offset={:#x}",
-                                 saved_errno, strerror(saved_errno), run.start, length, chunk,
-                                 run.offset);
-                    Common::Log::Stop();
-                    Crash();
-                }
-                merged += last - first;
-            }
-            first = last + 1;
-        }
-
-        // Merge again only once the count has grown by an eighth of the budget past what is left.
-        const u64 left = lines - merged;
-        merge_threshold.store(std::max(vma_budget / 2, left + vma_budget / 8),
-                              std::memory_order_relaxed);
-        const double ms = std::chrono::duration<double, std::milli>(
-                              std::chrono::steady_clock::now() - begin)
-                              .count();
-        LOG_WARNING(HW_Memory, "Host VMA merge ({}): {} mappings, {} merged away, {:.1f} ms",
-                    reason, lines, merged, ms);
     }
 
     /// Release all resources in the object
     void Release() {
         if (virtual_map_base != MAP_FAILED) {
-            [[maybe_unused]] int ret = munmap(virtual_map_base, virtual_size);
-            assert(ret == 0 && "munmap failed: {}" && (void(errno), true));
+            int ret = munmap(virtual_map_base, virtual_size);
+            ASSERT_MSG(ret == 0, "munmap failed: {}", strerror(errno));
         }
 
         if (backing_base != MAP_FAILED) {
-            [[maybe_unused]] int ret = munmap(backing_base, backing_size);
-            assert(ret == 0 && "munmap failed: {}" && (void(errno), true));
+            int ret = munmap(backing_base, backing_size);
+            ASSERT_MSG(ret == 0, "munmap failed: {}", strerror(errno));
         }
 
-        for (const int fd : fds) {
-            if (fd != -1) {
-                [[maybe_unused]] int ret = close(fd);
-                assert(ret == 0 && "close failed: {}" && (void(errno), true));
-            }
+        if (fd != -1) {
+            int ret = close(fd);
+            ASSERT_MSG(ret == 0, "close failed: {}", strerror(errno));
         }
     }
 
@@ -1014,29 +798,16 @@ private:
         }
     }
 
-    /// Backing file descriptors in order: one memfd, or the chunks the caller passed. -1 unused.
-    std::array<int, MaxBackingChunks> fds;
-    struct BackingFile {
-        u64 device; ///< As /proc/self/maps shows it: (major << 32) | minor
-        u64 inode;
-    };
-    /// Which file each backing file descriptor is, for MergeMappings.
-    std::array<BackingFile, MaxBackingChunks> backing_files{};
-    /// The backing is dma_bufs, whose mappings the kernel never merges: MergeMappings has work.
-    bool merge_by_hand{};
-    /// Map, Unmap and Protect hold it shared, MergeMappings exclusively.
-    std::shared_mutex layout_mutex;
-    std::atomic<u64> layout_op_count{0};
-    /// Mapping count at which the sampler thread runs MergeMappings.
-    std::atomic<u64> merge_threshold{0};
+    int fd{-1}; // memfd file descriptor, -1 is the error value of memfd_create
     FreeRegionManager free_manager{};
     std::atomic<u64> map_count{0};
     std::atomic<u64> unmap_count{0};
     std::atomic<u64> peak_vma_count{0};
     std::atomic<u64> requested_vma_sample{0};
+    std::atomic<bool> vma_sampler_stop{false};
     std::mutex vma_sampler_mutex;
-    std::condition_variable_any vma_sampler_cv;
-    std::jthread vma_sampler_thread;
+    std::condition_variable vma_sampler_cv;
+    std::thread vma_sampler_thread;
     u64 max_map_count{};
     u64 vma_budget{};
 };
@@ -1045,8 +816,7 @@ private:
 
 class HostMemory::Impl {
 public:
-    explicit Impl(size_t backing_size, size_t /*virtual_size*/, std::span<const int>, size_t)
-        : backing_buffer{backing_size} {
+    explicit Impl(size_t backing_size, size_t /*virtual_size*/) : backing_buffer{backing_size} {
         backing_base = backing_buffer.data();
     }
 
@@ -1067,16 +837,13 @@ private:
 
 #endif // ^^^ Generic ^^^
 
-HostMemory::HostMemory(size_t backing_size_, size_t virtual_size_,
-                       std::span<const int> backing_fds, size_t chunk_size)
+HostMemory::HostMemory(size_t backing_size_, size_t virtual_size_)
     : backing_size(backing_size_)
     , virtual_size(virtual_size_)
 {
     // Try to allocate a fastmem arena.
     // The implementation will fail with std::bad_alloc on errors.
-    impl = std::make_unique<HostMemory::Impl>(AlignUp(backing_size, PageAlignment),
-                                              AlignUp(virtual_size, PageAlignment) + HugePageSize,
-                                              backing_fds, chunk_size);
+    impl = std::make_unique<HostMemory::Impl>(AlignUp(backing_size, PageAlignment), AlignUp(virtual_size, PageAlignment) + HugePageSize);
     backing_base = impl->backing_base;
     virtual_base = impl->virtual_base;
     if (virtual_base) {

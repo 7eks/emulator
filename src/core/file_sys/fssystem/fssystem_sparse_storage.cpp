@@ -7,8 +7,8 @@ namespace FileSys {
 
 size_t SparseStorage::Read(u8* buffer, size_t size, size_t offset) const {
     // Validate preconditions.
-    assert(this->IsInitialized());
-    assert(buffer != nullptr);
+    ASSERT(this->IsInitialized());
+    ASSERT(buffer != nullptr);
 
     // Allow zero size.
     if (size == 0) {
@@ -19,10 +19,8 @@ size_t SparseStorage::Read(u8* buffer, size_t size, size_t offset) const {
 
     if (self->GetEntryTable().IsEmpty()) {
         BucketTree::Offsets table_offsets;
-        [[maybe_unused]] const auto get_offsets_result =
-            self->GetEntryTable().GetOffsets(std::addressof(table_offsets));
-        assert(R_SUCCEEDED(get_offsets_result));
-        assert(table_offsets.IsInclude(offset, size));
+        ASSERT(R_SUCCEEDED(self->GetEntryTable().GetOffsets(std::addressof(table_offsets))));
+        ASSERT(table_offsets.IsInclude(offset, size));
 
         std::memset(buffer, 0, size);
     } else {
