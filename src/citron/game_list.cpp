@@ -22,13 +22,13 @@
 #include <QFutureWatcher>
 #include <QGraphicsDropShadowEffect>
 #include <QGraphicsOpacityEffect>
+#include <QHash>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QCoreApplication>
 #include <QProcess>
-#include <QProcessEnvironment>
 #include <QProgressDialog>
 #include <QRegularExpression>
 #include <QTimer>
@@ -3155,12 +3155,9 @@ namespace {
 // ScarletNX runs the game in a job object that kills it when scarletnx.exe ends
 // (src/common/utilities/process.c), so a child of citron's would take the game down with citron.
 //
-// Progress comes from one of two places. A ScarletNX with SNX_PROGRESS_FILE appends one JSON
-// object per line to that file ({"v":1,"event":"extract"|"recompile"|"block"|"built"|"launched",
-// "done":N,"total":M}). Older ones only print, and the lines are matched the way ScarletNX's own
-// launcher reads them (src/gui/steps.c): "Unpacking ", "Extracting ", "Building hactool",
-// "Recompiling NAME (", "compiled block N/M", "Built " and the game's first line, "ScarletNX -
-// NAME". Once a JSON event has come, the printed lines are only kept for the error message.
+// Progress is read from ScarletNX's printed lines, as its own launcher does (src/gui/steps.c):
+// "Unpacking ", "Extracting ", "Building hactool", "Recompiling NAME (", "compiled block N/M",
+// "Built " and the game's first line, "ScarletNX - NAME".
 struct AotEvent {
     enum class Kind { None, Unpacking, Extracting, BuildingTool, Recompiling, Block, Built, Launched };
     Kind kind = Kind::None;
@@ -3172,12 +3169,9 @@ struct AotWatch {
     HANDLE process = nullptr;
     QFile out;
     QFile err;
-    QFile progress;
     QByteArray out_rest;
     QByteArray err_rest;
-    QByteArray progress_rest;
     QStringList last_errors;
-    bool structured = false;
     bool recompiling = false;
     bool launched = false;
     ~AotWatch() {
@@ -3206,11 +3200,19 @@ QStringList ReadNewLines(QFile& file, const QString& path, QByteArray& rest) {
     }
     rest += file.readAll();
     QStringList lines;
-    for (qsizetype end; (end = rest.indexOf('\n')) >= 0; rest.remove(0, end + 1)) {
+    while (true) {
+        const qsizetype newline = rest.indexOf('\n');
+        const qsizetype carriage = rest.indexOf('\r');
+        const qsizetype end = newline < 0 ? carriage : carriage < 0 ? newline : qMin(newline, carriage);
+        if (end < 0) {
+            break;
+        }
         const QString line = QString::fromUtf8(rest.left(end)).trimmed();
         if (!line.isEmpty()) {
             lines << line;
         }
+        const char separator = rest.at(end);
+        rest.remove(0, end + 1 + (separator == '\r' && end + 1 < rest.size() && rest.at(end + 1) == '\n'));
     }
     return lines;
 }
@@ -3238,31 +3240,8 @@ AotEvent ParseConsoleLine(const QString& line) {
     return event;
 }
 
-AotEvent ParseProgressLine(const QString& line) {
-    AotEvent event;
-    const QJsonObject object = QJsonDocument::fromJson(line.toUtf8()).object();
-    if (object.value(QStringLiteral("v")).toInt() != 1) {
-        return event; // a newer format than this one reads
-    }
-    const QString name = object.value(QStringLiteral("event")).toString();
-    if (name == QStringLiteral("extract")) {
-        event.kind = AotEvent::Kind::Extracting;
-    } else if (name == QStringLiteral("recompile")) {
-        event.kind = AotEvent::Kind::Recompiling;
-    } else if (name == QStringLiteral("block")) {
-        event.kind = AotEvent::Kind::Block;
-    } else if (name == QStringLiteral("built")) {
-        event.kind = AotEvent::Kind::Built;
-    } else if (name == QStringLiteral("launched")) {
-        event.kind = AotEvent::Kind::Launched;
-    }
-    event.done = object.value(QStringLiteral("done")).toInt();
-    event.total = object.value(QStringLiteral("total")).toInt();
-    return event;
-}
-
 void WatchScarletNX(GameList* parent, qint64 pid, const QString& game, const QString& out_log,
-                    const QString& err_log, const QString& progress_file) {
+                    const QString& err_log) {
     auto watch = std::make_shared<AotWatch>();
     watch->process =
         OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
@@ -3291,12 +3270,6 @@ void WatchScarletNX(GameList* parent, qint64 pid, const QString& game, const QSt
         // the exit is read before the logs: what it printed last is read after
         const bool exited = AotProcessEnded(*watch);
         QList<AotEvent> events;
-        for (const QString& line : ReadNewLines(watch->progress, progress_file, watch->progress_rest)) {
-            if (const AotEvent event = ParseProgressLine(line); event.kind != AotEvent::Kind::None) {
-                watch->structured = true;
-                events << event;
-            }
-        }
         // stdout first: when both have news, the game's first line (stderr) comes last
         QStringList lines = ReadNewLines(watch->out, out_log, watch->out_rest);
         const QStringList errors = ReadNewLines(watch->err, err_log, watch->err_rest);
@@ -3309,11 +3282,10 @@ void WatchScarletNX(GameList* parent, qint64 pid, const QString& game, const QSt
             watch->last_errors.removeFirst();
         }
         lines << errors;
-        if (!watch->structured) {
-            for (const QString& line : lines) {
-                if (const AotEvent event = ParseConsoleLine(line); event.kind != AotEvent::Kind::None) {
-                    events << event;
-                }
+        for (const QString& line : lines) {
+            const AotEvent event = ParseConsoleLine(line);
+            if (event.kind != AotEvent::Kind::None) {
+                events << event;
             }
         }
         for (const AotEvent& event : events) {
@@ -3403,34 +3375,62 @@ QString ResolveScarletNX(QWidget* parent) {
     return exe;
 }
 
+// Older ScarletNX builds do not accept key paths on dump-play. Check --help once per executable
+// version so they can keep using the key files copied into their working folder.
+bool ScarletNXTakesKeyFlags(const QString& exe) {
+    static QHash<QString, bool> known;
+    const QString id = exe + QLatin1Char('|') +
+                       QString::number(QFileInfo(exe).lastModified().toMSecsSinceEpoch());
+    if (const auto found = known.constFind(id); found != known.constEnd()) {
+        return found.value();
+    }
+    QProcess help;
+    help.setProgram(exe);
+    help.setArguments({QStringLiteral("--help")});
+    help.start();
+    bool takes = false;
+    if (help.waitForFinished(5000)) {
+        const QString output = QString::fromUtf8(help.readAllStandardOutput());
+        takes = output.contains(QStringLiteral("--title-keys"));
+    } else {
+        help.kill();
+        help.waitForFinished(1000);
+    }
+    known.insert(id, takes);
+    return takes;
+}
+
 void RunWithAot(GameList* parent, const QString& path) {
     const QString exe = ResolveScarletNX(parent);
     if (exe.isEmpty()) {
         return;
     }
-    // ScarletNX keeps work/ and games/ in its working directory when run from a zip, and looks for
-    // prod.keys and title.keys there before ~/.switch, so it runs in a folder of citron's own.
-    // The key files are copied into it for the ScarletNX builds that predate SNX_KEYS and
-    // SNX_TITLE_KEYS (below), which point it at citron's own files wherever they are.
+    // ScarletNX keeps work/ and games/ in its working directory when run from a zip, so use a
+    // folder of Citron's own. Current builds take Citron's keys as command-line options; older
+    // builds find copies in their working folder.
     const auto work_dir = Common::FS::GetCitronPath(Common::FS::CitronPath::CitronDir) / "scarletnx";
     const auto keys_dir = Common::FS::GetCitronPath(Common::FS::CitronPath::KeysDir);
     const QString work = QString::fromStdString(Common::FS::PathToUTF8String(work_dir));
     std::error_code ec;
     std::filesystem::create_directories(work_dir, ec);
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    const bool key_flags = ScarletNXTakesKeyFlags(exe);
+    QStringList arguments;
     struct KeyFile {
         const char* name;
-        const char* variable;
+        const char* flag;
     };
-    for (const KeyFile& key : {KeyFile{"prod.keys", "SNX_KEYS"}, KeyFile{"title.keys", "SNX_TITLE_KEYS"}}) {
+    for (const KeyFile& key : {KeyFile{"prod.keys", "--keys"}, KeyFile{"title.keys", "--title-keys"}}) {
         if (ec || !std::filesystem::is_regular_file(keys_dir / key.name)) {
             continue;
         }
-        std::filesystem::copy_file(keys_dir / key.name, work_dir / key.name,
-                                   std::filesystem::copy_options::overwrite_existing, ec);
-        env.insert(QString::fromLatin1(key.variable),
-                   QDir::toNativeSeparators(QString::fromStdString(
-                       Common::FS::PathToUTF8String(keys_dir / key.name))));
+        if (key_flags) {
+            arguments << QString::fromLatin1(key.flag)
+                      << QDir::toNativeSeparators(QString::fromStdString(
+                             Common::FS::PathToUTF8String(keys_dir / key.name)));
+        } else {
+            std::filesystem::copy_file(keys_dir / key.name, work_dir / key.name,
+                                       std::filesystem::copy_options::overwrite_existing, ec);
+        }
     }
     if (ec) {
         QMessageBox::warning(parent, GameList::tr("Run with AOT"),
@@ -3441,16 +3441,12 @@ void RunWithAot(GameList* parent, const QString& path) {
     const QDir dir(work);
     const QString out_log = dir.filePath(QStringLiteral("scarletnx.log"));
     const QString err_log = dir.filePath(QStringLiteral("scarletnx-errors.log"));
-    const QString progress_file = dir.filePath(QStringLiteral("scarletnx-progress.jsonl"));
-    QFile::remove(progress_file);
-    env.insert(QStringLiteral("SNX_PROGRESS_FILE"), QDir::toNativeSeparators(progress_file));
-
     // It is a GUI program, so its output goes to log files in that folder.
     QProcess process;
     process.setProgram(exe);
-    process.setArguments({path});
+    arguments << path;
+    process.setArguments(arguments);
     process.setWorkingDirectory(work);
-    process.setProcessEnvironment(env);
     process.setStandardOutputFile(out_log);
     process.setStandardErrorFile(err_log);
     qint64 pid = 0;
@@ -3459,8 +3455,7 @@ void RunWithAot(GameList* parent, const QString& path) {
                              GameList::tr("Could not start %1.").arg(exe));
         return;
     }
-    WatchScarletNX(parent, pid, QFileInfo(path).completeBaseName(), out_log, err_log,
-                   progress_file);
+    WatchScarletNX(parent, pid, QFileInfo(path).completeBaseName(), out_log, err_log);
 }
 } // namespace
 #endif
